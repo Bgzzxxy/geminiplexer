@@ -144,6 +144,8 @@ func (s *AccountSession) StreamGenerate(ctx context.Context, prompt string, mode
 		defer close(ch)
 
 		reader := bufio.NewReader(resp.Body)
+		var frameBuf strings.Builder
+
 		for {
 			line, err := reader.ReadString('\n')
 			if err != nil {
@@ -154,6 +156,20 @@ func (s *AccountSession) StreamGenerate(ctx context.Context, prompt string, mode
 			}
 			line = strings.TrimSpace(line)
 			if line == "" {
+				// Empty line often separates SSE events; if buffer has content, try parsing before clearing
+				if frameBuf.Len() > 0 {
+					dataStr := frameBuf.String()
+					if chunks := parseStreamFrame(dataStr); len(chunks) > 0 {
+						for _, chunk := range chunks {
+							select {
+							case ch <- chunk:
+							case <-ctx.Done():
+								return
+							}
+						}
+					}
+					frameBuf.Reset()
+				}
 				continue
 			}
 
@@ -165,13 +181,23 @@ func (s *AccountSession) StreamGenerate(ctx context.Context, prompt string, mode
 				dataStr = strings.TrimSpace(strings.TrimPrefix(dataStr, ")]}'"))
 			}
 
-			chunks := parseStreamFrame(dataStr)
-			for _, chunk := range chunks {
-				if chunk.Text != "" || chunk.Reasoning != "" || chunk.ModelID != "" {
-					select {
-					case ch <- chunk:
-					case <-ctx.Done():
-						return
+			// Append to assembly buffer
+			if frameBuf.Len() > 0 {
+				frameBuf.WriteString(" ")
+			}
+			frameBuf.WriteString(dataStr)
+
+			combined := frameBuf.String()
+			chunks := parseStreamFrame(combined)
+			if len(chunks) > 0 {
+				frameBuf.Reset()
+				for _, chunk := range chunks {
+					if chunk.Text != "" || chunk.Reasoning != "" || chunk.ModelID != "" {
+						select {
+						case ch <- chunk:
+						case <-ctx.Done():
+							return
+						}
 					}
 				}
 			}

@@ -11,6 +11,9 @@ import (
 const DefaultRotateEndpoint = "https://accounts.google.com/RotateCookies"
 
 func (s *AccountSession) RotateCookies(ctx context.Context) error {
+	s.rotateMu.Lock()
+	defer s.rotateMu.Unlock()
+
 	s.mu.Lock()
 	endpoint := DefaultRotateEndpoint
 	if s.RotateEndpointOverride != "" {

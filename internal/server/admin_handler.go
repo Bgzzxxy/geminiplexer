@@ -70,7 +70,7 @@ func (s *Server) handleAdminCookies(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if target != nil {
-			target.RawCookies = req.Cookies
+			target.UpdateCookies(req.Cookies)
 			// Re-initialize session in background
 			go func() {
 				_ = target.Init(context.Background())

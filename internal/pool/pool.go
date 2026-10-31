@@ -45,7 +45,6 @@ func (p *AccountPool) GetSessions() []*gemini.AccountSession {
 
 func (p *AccountPool) Acquire(ctx context.Context, requestedModel string) (*gemini.AccountSession, gemini.GeminiModel, func(status ErrorKind), error) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
 
 	now := time.Now()
 	var bestSession *gemini.AccountSession
@@ -64,16 +63,25 @@ func (p *AccountPool) Acquire(ctx context.Context, requestedModel string) (*gemi
 	}
 
 	if bestSession == nil {
+		p.mu.Unlock()
 		return nil, gemini.GeminiModel{}, nil, fmt.Errorf("no healthy accounts available in pool (all in cooldown or uninitialized)")
 	}
 
 	// Rate-limit gap check: guarantee at least 2s gap per account
+	var gap time.Duration
 	if time.Since(bestSession.LastUsed) < 2*time.Second {
-		gap := 2*time.Second - time.Since(bestSession.LastUsed)
-		time.Sleep(gap)
+		gap = 2*time.Second - time.Since(bestSession.LastUsed)
 	}
+	bestSession.LastUsed = now.Add(gap)
+	p.mu.Unlock()
 
-	bestSession.LastUsed = time.Now()
+	if gap > 0 {
+		select {
+		case <-time.After(gap):
+		case <-ctx.Done():
+			return nil, gemini.GeminiModel{}, nil, ctx.Err()
+		}
+	}
 
 	model := gemini.GeminiModel{
 		ID:            "gemini-auto",

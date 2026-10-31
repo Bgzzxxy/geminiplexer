@@ -53,3 +53,18 @@ func TestRotateCookiesUpdatesTS(t *testing.T) {
 		t.Errorf("expected new_rotated_ts_token, got %s", sess.GetPSIDTS())
 	}
 }
+
+func TestUpdateCookiesParsesFields(t *testing.T) {
+	sess := gemini.NewAccountSession(config.AccountConfig{
+		ID:      "acc1",
+		Cookies: "__Secure-1PSID=old_sid; __Secure-1PSIDTS=old_ts",
+	})
+
+	sess.UpdateCookies("__Secure-1PSID=new_sid_123; __Secure-1PSIDTS=new_ts_456")
+	if sess.GetPSIDTS() != "new_ts_456" {
+		t.Errorf("expected new_ts_456, got %s", sess.GetPSIDTS())
+	}
+	if sess.GetFullCookieHeader() != "__Secure-1PSID=new_sid_123; __Secure-1PSIDTS=new_ts_456" {
+		t.Errorf("expected updated full cookie header, got: %s", sess.GetFullCookieHeader())
+	}
+}

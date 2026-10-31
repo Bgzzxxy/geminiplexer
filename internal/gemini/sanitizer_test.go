@@ -22,3 +22,18 @@ func TestSanitizeTextCleansRepeatedCites(t *testing.T) {
 		t.Errorf("expected %q, got %q", expected, got)
 	}
 }
+
+func TestSanitizerPreservesIndentationAndSpaces(t *testing.T) {
+	code := "def hello():\n    print('hi') [cite: 1]"
+	expected := "def hello():\n    print('hi')"
+	got := gemini.SanitizeText(code)
+	if got != expected {
+		t.Errorf("expected %q, got %q", expected, got)
+	}
+
+	chunk := "hello "
+	gotChunk := gemini.SanitizeText(chunk)
+	if gotChunk != "hello " {
+		t.Errorf("expected trailing space preserved: %q, got: %q", "hello ", gotChunk)
+	}
+}

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"gemini-to-api/internal/gemini"
 	"gemini-to-api/internal/pool"
 	"gemini-to-api/internal/toolbridge"
 )
@@ -176,22 +178,73 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		modelName = "gemini-auto"
 	}
 
-	sess, gModel, release, err := s.pool.Acquire(r.Context(), modelName)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Pool error: %v", err), http.StatusServiceUnavailable)
-		return
-	}
-	defer release(pool.StatusSuccess)
-
 	prompt := flattenMessages(req.Messages, req.Tools)
 	thinkingLevel := parseReasoningEffort(req.ReasoningEffort)
 
-	streamChan, err := sess.StreamGenerate(r.Context(), prompt, gModel, thinkingLevel)
-	if err != nil {
-		release(pool.StatusRateLimited)
-		http.Error(w, fmt.Sprintf("Gemini upstream error: %v", err), http.StatusBadGateway)
+	maxAttempts := len(s.pool.GetSessions())
+	if maxAttempts <= 0 {
+		maxAttempts = 1
+	}
+
+	var (
+		sess           *gemini.AccountSession
+		gModel         gemini.GeminiModel
+		release        func(pool.ErrorKind)
+		streamChan     <-chan gemini.GenerateChunk
+		bufferedChunks []gemini.GenerateChunk
+		lastErr        error
+	)
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		sess, gModel, release, err = s.pool.Acquire(r.Context(), modelName)
+		if err != nil {
+			lastErr = err
+			break
+		}
+
+		streamChan, err = sess.StreamGenerate(r.Context(), prompt, gModel, thinkingLevel)
+		if err != nil {
+			lastErr = err
+			if strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "403") {
+				release(pool.StatusAuthError)
+				go sess.Init(context.Background())
+			} else {
+				release(pool.StatusRateLimited)
+			}
+			continue
+		}
+
+		// Buffer initial chunk to inspect ModelID for downgrade detection
+		bufferedChunks = nil
+		downgraded := false
+
+		for chunk := range streamChan {
+			bufferedChunks = append(bufferedChunks, chunk)
+			if chunk.ModelID != "" {
+				if strings.Contains(strings.ToLower(modelName), "pro") && strings.Contains(strings.ToLower(chunk.ModelID), "flash") {
+					downgraded = true
+				}
+				break
+			}
+			if chunk.Text != "" || chunk.Reasoning != "" || chunk.IsDone {
+				break
+			}
+		}
+
+		if downgraded && attempt < maxAttempts-1 {
+			release(pool.StatusModelDowngraded)
+			continue
+		}
+
+		// Succeeded with healthy model
+		break
+	}
+
+	if streamChan == nil {
+		http.Error(w, fmt.Sprintf("Pool error or upstream failure: %v", lastErr), http.StatusBadGateway)
 		return
 	}
+	defer release(pool.StatusSuccess)
 
 	reqID := "chatcmpl-" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
 	created := time.Now().Unix()
@@ -207,9 +260,10 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		for chunk := range streamChan {
+		var prevText string
+		processChunk := func(chunk gemini.GenerateChunk) {
 			if chunk.IsDone {
-				break
+				return
 			}
 
 			delta := Delta{}
@@ -217,7 +271,14 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 				delta.ReasoningContent = chunk.Reasoning + "\n"
 			}
 			if chunk.Text != "" {
-				delta.Content = chunk.Text
+				// Emit incremental delta, not duplicate cumulative prefix
+				if strings.HasPrefix(chunk.Text, prevText) {
+					delta.Content = chunk.Text[len(prevText):]
+					prevText = chunk.Text
+				} else {
+					delta.Content = chunk.Text
+					prevText = chunk.Text
+				}
 			}
 
 			if delta.Content != "" || delta.ReasoningContent != "" {
@@ -239,25 +300,53 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		for _, c := range bufferedChunks {
+			processChunk(c)
+		}
+		for chunk := range streamChan {
+			processChunk(chunk)
+		}
+
 		fmt.Fprintf(w, "data: [DONE]\n\n")
 		flusher.Flush()
 		return
 	}
 
-	// Non-streaming response aggregation
-	var fullText strings.Builder
+	// Non-streaming response aggregation: take the latest cumulative snapshot
+	var finalContent string
+	for _, c := range bufferedChunks {
+		if c.Text != "" {
+			finalContent = c.Text
+		}
+	}
 	for chunk := range streamChan {
 		if chunk.Text != "" {
-			fullText.WriteString(chunk.Text)
+			finalContent = chunk.Text
 		}
 	}
 
-	finalContent := fullText.String()
 	var toolCalls []toolbridge.ToolCall
 	if len(req.Tools) > 0 {
-		if parsedCalls, remaining, ok := toolbridge.ParseToolCalls(finalContent); ok {
+		parsedCalls, remaining, ok := toolbridge.ParseToolCalls(finalContent)
+		if ok {
 			toolCalls = parsedCalls
 			finalContent = remaining
+		} else if strings.Contains(finalContent, "```json") || strings.Contains(finalContent, "\"name\":") {
+			// Model attempted tool call but produced invalid JSON: 1-shot repair attempt
+			repairPrompt := toolbridge.BuildRepairPrompt(finalContent, "JSON validation failed")
+			repairChan, err := sess.StreamGenerate(r.Context(), repairPrompt, gModel, thinkingLevel)
+			if err == nil {
+				var repairText string
+				for rc := range repairChan {
+					if rc.Text != "" {
+						repairText = rc.Text
+					}
+				}
+				if fixedCalls, fixedRem, ok := toolbridge.ParseToolCalls(repairText); ok {
+					toolCalls = fixedCalls
+					finalContent = fixedRem
+				}
+			}
 		}
 	}
 

@@ -77,7 +77,7 @@ func main() {
 				found := false
 				for _, s := range accountPool.GetSessions() {
 					if s.ID == acc.ID {
-						s.RawCookies = acc.Cookies
+						s.UpdateCookies(acc.Cookies)
 						go s.Init(context.Background())
 						found = true
 						break

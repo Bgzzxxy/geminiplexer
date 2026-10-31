@@ -22,6 +22,7 @@ var (
 
 type AccountSession struct {
 	mu                     sync.RWMutex
+	rotateMu               sync.Mutex
 	ID                     string
 	AuthUser               string
 	RawCookies             string
@@ -74,6 +75,15 @@ func (s *AccountSession) SetEndpointOverride(u string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.EndpointOverride = u
+}
+
+func (s *AccountSession) UpdateCookies(rawCookies string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.RawCookies = rawCookies
+	s.Secure1PSID = parseCookieField(rawCookies, "__Secure-1PSID")
+	s.Secure1PSIDTS = parseCookieField(rawCookies, "__Secure-1PSIDTS")
+	s.IsHealthy = true
 }
 
 func (s *AccountSession) SetRotateEndpointOverride(u string) {

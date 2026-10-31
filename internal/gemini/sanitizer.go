@@ -2,15 +2,13 @@ package gemini
 
 import (
 	"regexp"
-	"strings"
 )
 
 var (
-	citePattern       = regexp.MustCompile(`\[cite:\s*[0-9,\s]+\]`)
-	citeStartPattern  = regexp.MustCompile(`\[cite_start\]`)
+	citePattern       = regexp.MustCompile(`[ \t]*\[cite:\s*[0-9,\s]+\]`)
+	citeStartPattern  = regexp.MustCompile(`[ \t]*\[cite_start\]`)
 	codeFenceSuffixes = regexp.MustCompile(`\?(?:code_reference|code_stdout)`)
-	spaceBeforePunct  = regexp.MustCompile(`\s+([.,;:!?])`)
-	multipleSpaces    = regexp.MustCompile(`[ 	]+`)
+	spaceBeforePunct  = regexp.MustCompile(`[ \t]+([.,;:!?])`)
 )
 
 func SanitizeText(input string) string {
@@ -18,6 +16,5 @@ func SanitizeText(input string) string {
 	res = citeStartPattern.ReplaceAllString(res, "")
 	res = codeFenceSuffixes.ReplaceAllString(res, "")
 	res = spaceBeforePunct.ReplaceAllString(res, "$1")
-	res = multipleSpaces.ReplaceAllString(res, " ")
-	return strings.TrimSpace(res)
+	return res
 }
