@@ -1,203 +1,151 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 480" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 420" width="100%" height="100%">
   <defs>
-    <!-- Background styling -->
-    <linearGradient id="bgCanvas" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#090A0F"/>
-      <stop offset="50%" stop-color="#0E1017"/>
-      <stop offset="100%" stop-color="#07080C"/>
+    <!-- Dark Surface Background -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0B0F19"/>
+      <stop offset="100%" stop-color="#070A10"/>
     </linearGradient>
 
-    <!-- Dot Grid Pattern -->
-    <pattern id="dotGrid" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-      <circle cx="2" cy="2" r="1" fill="#202230" opacity="0.6"/>
-    </pattern>
-
-    <!-- Card Background Gradient -->
-    <linearGradient id="cardBg" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#181926" stop-opacity="0.85"/>
-      <stop offset="100%" stop-color="#10111A" stop-opacity="0.95"/>
-    </linearGradient>
-
-    <linearGradient id="coreCardBg" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#1F2033" stop-opacity="0.95"/>
-      <stop offset="100%" stop-color="#121320" stop-opacity="0.98"/>
-    </linearGradient>
-
-    <!-- Accent Gradients -->
-    <linearGradient id="cyanPurple" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#38BDF8"/>
-      <stop offset="50%" stop-color="#818CF8"/>
-      <stop offset="100%" stop-color="#C084FC"/>
-    </linearGradient>
-
-    <linearGradient id="argonGlow" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#F59E0B"/>
-      <stop offset="100%" stop-color="#EF4444"/>
-    </linearGradient>
-
-    <!-- Glow Filter -->
-    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="6" result="blur"/>
-      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
-    </filter>
+    <!-- Precise Directional Arrows -->
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#38BDF8"/>
+    </marker>
+    <marker id="arrow-indigo" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#818CF8"/>
+    </marker>
+    <marker id="arrow-emerald" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#10B981"/>
+    </marker>
   </defs>
 
   <style>
-    .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-    .font-sans { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-    .title { font-weight: 700; fill: #FFFFFF; letter-spacing: -0.5px; }
-    .subtitle { font-size: 13px; fill: #94A3B8; }
-    .card-title { font-size: 14px; font-weight: 600; fill: #E2E8F0; }
-    .badge { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-    .conn-label { font-size: 11px; fill: #64748B; font-weight: 500; }
+    .mono { font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace; }
+    .sans { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .title { font-size: 16px; font-weight: 700; fill: #F8FAFC; letter-spacing: -0.2px; }
+    .subtitle { font-size: 12px; fill: #64748B; }
+    .block-title { font-size: 13px; font-weight: 600; fill: #E2E8F0; }
+    .block-sub { font-size: 11px; fill: #94A3B8; }
+    .tag { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .lane-text { font-size: 11px; fill: #64748B; font-weight: 500; }
   </style>
 
-  <!-- Canvas Base -->
-  <rect width="1200" height="480" rx="20" fill="url(#bgCanvas)" stroke="#1E202E" stroke-width="2"/>
-  <rect width="1200" height="480" rx="20" fill="url(#dotGrid)"/>
+  <!-- Frame Background -->
+  <rect width="1120" height="420" rx="16" fill="url(#bg)" stroke="#1E293B" stroke-width="1.5"/>
 
-  <!-- Ambient Light Orbs -->
-  <circle cx="200" cy="100" r="160" fill="#38BDF8" opacity="0.04" filter="blur(40px)"/>
-  <circle cx="600" cy="240" r="220" fill="#6366F1" opacity="0.06" filter="blur(50px)"/>
-  <circle cx="1000" cy="380" r="180" fill="#C084FC" opacity="0.04" filter="blur(40px)"/>
-
-  <!-- ==================== HEADER ==================== -->
-  <g transform="translate(60, 48)">
-    <text class="font-sans title" font-size="28">⚡ GEMINIPLEXER ARCHITECTURE</text>
-    <text class="font-sans subtitle" y="24">Bare-metal dual protocol gateway pooling Google Gemini Web sessions with automated quota failover</text>
+  <!-- Technical Top Header Bar -->
+  <g transform="translate(40, 36)">
+    <rect width="20" height="20" rx="4" fill="#1E293B" stroke="#334155"/>
+    <text class="mono" font-size="11" font-weight="700" fill="#38BDF8" x="5" y="14">G</text>
+    <text class="sans title" x="32" y="15">Geminiplexer System Architecture</text>
+    <text class="mono subtitle" x="290" y="15">|  Go Bare-Metal Gateway  |  Port 4981</text>
   </g>
 
-  <!-- Header Badges -->
-  <g transform="translate(860, 42)">
-    <rect width="130" height="26" rx="6" fill="#1E293B" stroke="#334155"/>
-    <text class="font-mono badge" x="65" y="17" text-anchor="middle" fill="#38BDF8">PURE GO (0 DOCKER)</text>
-
-    <rect x="142" width="138" height="26" rx="6" fill="#1E293B" stroke="#334155"/>
-    <text class="font-mono badge" x="211" y="17" text-anchor="middle" fill="#A855F7">DUAL PROTOCOL</text>
+  <g transform="translate(850, 28)">
+    <rect width="105" height="24" rx="4" fill="#0F172A" stroke="#1E293B"/>
+    <text class="mono tag" x="52" y="16" text-anchor="middle" fill="#38BDF8">RAM &lt; 20 MB</text>
+    <rect x="115" width="115" height="24" rx="4" fill="#0F172A" stroke="#1E293B"/>
+    <text class="mono tag" x="172" y="16" text-anchor="middle" fill="#10B981">ZERO DOCKER</text>
   </g>
 
-  <!-- ==================== COLUMN 1: CLIENTS ==================== -->
-  <g transform="translate(60, 110)">
-    <!-- Section Title -->
-    <text class="font-mono" font-size="12" fill="#64748B" font-weight="600" letter-spacing="1">CLIENT PROTOCOLS</text>
+  <line x1="40" y1="68" x2="1080" y2="68" stroke="#1E293B" stroke-width="1"/>
 
-    <!-- Card 1: OpenAI Clients -->
-    <g transform="translate(0, 22)">
-      <rect width="260" height="136" rx="12" fill="url(#cardBg)" stroke="#27273A" stroke-width="1.5"/>
-      <circle cx="28" cy="28" r="8" fill="#10B981" opacity="0.2"/>
-      <circle cx="28" cy="28" r="4" fill="#10B981"/>
-      <text class="font-sans card-title" x="46" y="33">OpenAI Compatible</text>
-      <text class="font-mono" font-size="11" fill="#38BDF8" x="46" y="52">POST /v1/chat/completions</text>
-      
-      <line x1="20" y1="68" x2="240" y2="68" stroke="#1F2130"/>
-      <text class="font-sans" font-size="12" fill="#94A3B8" x="20" y="88">• Cursor &amp; Windsurf IDE</text>
-      <text class="font-sans" font-size="12" fill="#94A3B8" x="20" y="106">• Open-WebUI &amp; Aider</text>
-      <text class="font-sans" font-size="12" fill="#94A3B8" x="20" y="124">• 9router &amp; OpenAI Python SDK</text>
+  <!-- ==================== COLUMN 1: CLIENT PROTOCOL INGESTION ==================== -->
+  <g transform="translate(40, 92)">
+    <text class="mono tag" fill="#64748B">01. INGESTION INTERFACES</text>
+
+    <!-- Block A: OpenAI -->
+    <g transform="translate(0, 18)">
+      <rect width="260" height="110" rx="8" fill="#0F172A" stroke="#1E293B" stroke-width="1.2"/>
+      <text class="mono" font-size="11" font-weight="600" fill="#38BDF8" x="16" y="26">POST /v1/chat/completions</text>
+      <text class="sans block-sub" x="16" y="46">OpenAI Wire Protocol (SSE &amp; Sync)</text>
+      <line x1="16" y1="58" x2="244" y2="58" stroke="#1E293B"/>
+      <text class="mono" font-size="10" fill="#64748B" x="16" y="76">• Cursor / Windsurf / Aider</text>
+      <text class="mono" font-size="10" fill="#64748B" x="16" y="94">• Open-WebUI / 9router</text>
     </g>
 
-    <!-- Card 2: Anthropic Clients -->
-    <g transform="translate(0, 178)">
-      <rect width="260" height="136" rx="12" fill="url(#cardBg)" stroke="#27273A" stroke-width="1.5"/>
-      <circle cx="28" cy="28" r="8" fill="#D97757" opacity="0.2"/>
-      <circle cx="28" cy="28" r="4" fill="#D97757"/>
-      <text class="font-sans card-title" x="46" y="33">Anthropic Compatible</text>
-      <text class="font-mono" font-size="11" fill="#D97757" x="46" y="52">POST /v1/messages</text>
-      
-      <line x1="20" y1="68" x2="240" y2="68" stroke="#1F2130"/>
-      <text class="font-sans" font-size="12" fill="#94A3B8" x="20" y="88">• Claude Code CLI</text>
-      <text class="font-sans" font-size="12" fill="#94A3B8" x="20" y="106">• Cline &amp; RooCode (VS Code)</text>
-      <text class="font-sans" font-size="12" fill="#94A3B8" x="20" y="124">• Official Anthropic SDK</text>
+    <!-- Block B: Anthropic -->
+    <g transform="translate(0, 148)">
+      <rect width="260" height="110" rx="8" fill="#0F172A" stroke="#1E293B" stroke-width="1.2"/>
+      <text class="mono" font-size="11" font-weight="600" fill="#818CF8" x="16" y="26">POST /v1/messages</text>
+      <text class="sans block-sub" x="16" y="46">Anthropic Claude Messages Protocol</text>
+      <line x1="16" y1="58" x2="244" y2="58" stroke="#1E293B"/>
+      <text class="mono" font-size="10" fill="#64748B" x="16" y="76">• Claude Code CLI</text>
+      <text class="mono" font-size="10" fill="#64748B" x="16" y="94">• Cline / RooCode (VS Code)</text>
     </g>
   </g>
 
-  <!-- ==================== BUS CONNECTOR 1 -> 2 ==================== -->
-  <g stroke="#38BDF8" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.8">
-    <path d="M 320, 200 L 410, 200 L 440, 240"/>
-    <path d="M 320, 356 L 410, 356 L 440, 280"/>
-  </g>
-  <circle cx="440" cy="240" r="4" fill="#38BDF8"/>
-  <circle cx="440" cy="280" r="4" fill="#D97757"/>
+  <!-- Connectors: Ingestion -> Core -->
+  <path d="M 300, 165 L 360, 165 L 380, 205 L 410, 205" fill="none" stroke="#38BDF8" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+  <path d="M 300, 295 L 360, 295 L 380, 255 L 410, 255" fill="none" stroke="#818CF8" stroke-width="1.5" marker-end="url(#arrow-indigo)"/>
 
-  <!-- ==================== COLUMN 2: GEMINIPLEXER CORE ==================== -->
-  <g transform="translate(450, 110)">
-    <text class="font-mono" font-size="12" fill="#818CF8" font-weight="600" letter-spacing="1">GEMINIPLEXER ENGINE (:4981)</text>
+  <!-- ==================== COLUMN 2: GEMINIPLEXER CORE ENGINE ==================== -->
+  <g transform="translate(420, 92)">
+    <text class="mono tag" fill="#38BDF8">02. CORE ROUTING PIPELINE</text>
 
-    <rect y="22" width="300" height="292" rx="16" fill="url(#coreCardBg)" stroke="#3E4268" stroke-width="1.8"/>
+    <rect y="18" width="320" height="240" rx="8" fill="#0D1322" stroke="#25334D" stroke-width="1.5"/>
 
-    <!-- Header inside Core -->
-    <g transform="translate(20, 48)">
-      <rect width="36" height="36" rx="8" fill="#1E1B4B" stroke="#4338CA"/>
-      <text font-size="18" x="9" y="25">⚡</text>
-      <text class="font-sans" font-size="16" font-weight="700" fill="#FFFFFF" x="48" y="20">Go Bare-Metal Core</text>
-      <text class="font-mono" font-size="11" fill="#38BDF8" x="48" y="34">RAM &lt; 20 MB | ~0ms Overhead</text>
-    </g>
+    <g transform="translate(16, 36)">
+      <!-- Unit 1 -->
+      <rect width="288" height="42" rx="4" fill="#131C31" stroke="#1E293B"/>
+      <text class="sans block-title" x="12" y="20">Protocol Normalizer &amp; Tool Bridge</text>
+      <text class="mono" font-size="10" fill="#64748B" x="12" y="34">JSON Schema Injection &amp; Delta Slicer</text>
 
-    <line x1="20" y1="102" x2="280" y2="102" stroke="#25283D"/>
+      <!-- Unit 2 -->
+      <rect y="52" width="288" height="48" rx="4" fill="#131C31" stroke="#38BDF8" stroke-width="1.2"/>
+      <text class="sans block-title" fill="#F8FAFC" x="12" y="72">LRU Pooler &amp; Anti-Burst Cooldown</text>
+      <text class="mono" font-size="10" fill="#38BDF8" x="12" y="88">Min 2s inter-request spacing per account</text>
 
-    <!-- Module blocks inside Core -->
-    <g transform="translate(20, 116)">
-      <!-- Item 1: Protocol Translator -->
-      <rect width="260" height="38" rx="8" fill="#141524" stroke="#2B2E4A"/>
-      <text class="font-sans" font-size="12" font-weight="600" fill="#E2E8F0" x="12" y="24">Dual Protocol Translator &amp; SSE Slicer</text>
+      <!-- Unit 3 -->
+      <rect y="110" width="288" height="48" rx="4" fill="#131C31" stroke="#F59E0B" stroke-width="1.2"/>
+      <text class="sans block-title" fill="#F8FAFC" x="12" y="130">Downgrade Quarantine Circuit Breaker</text>
+      <text class="mono" font-size="10" fill="#F59E0B" x="12" y="146">Detects silent Flash fallback -> 15m quarantine</text>
 
-      <!-- Item 2: Tool Bridge -->
-      <rect y="46" width="260" height="38" rx="8" fill="#141524" stroke="#2B2E4A"/>
-      <text class="font-sans" font-size="12" font-weight="600" fill="#E2E8F0" x="12" y="70">JSON Tool Bridge &amp; Schema Parser</text>
-
-      <!-- Item 3: Pool & Failover -->
-      <rect y="92" width="260" height="46" rx="8" fill="#1A1C30" stroke="#4F46E5"/>
-      <text class="font-sans" font-size="12" font-weight="700" fill="#818CF8" x="12" y="112">LRU Pool &amp; Anti-Burst Cooldown</text>
-      <text class="font-sans" font-size="11" fill="#94A3B8" x="12" y="128">Model Downgrade Quarantine (15m Auto)</text>
-
-      <!-- Item 4: Cookie Rotator -->
-      <rect y="146" width="260" height="38" rx="8" fill="#141524" stroke="#2B2E4A"/>
-      <text class="font-sans" font-size="12" font-weight="600" fill="#E2E8F0" x="12" y="170">RotateCookies Jitter Daemon</text>
+      <!-- Unit 4 -->
+      <rect y="168" width="288" height="42" rx="4" fill="#131C31" stroke="#1E293B"/>
+      <text class="sans block-title" x="12" y="188">RotateCookies Session Refresher</text>
+      <text class="mono" font-size="10" fill="#64748B" x="12" y="202">Background jittered cookie rotation (±10%)</text>
     </g>
   </g>
 
-  <!-- ==================== BUS CONNECTOR 2 -> 3 ==================== -->
-  <g stroke="#818CF8" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.8">
-    <path d="M 750, 210 L 810, 210 L 850, 180"/>
-    <path d="M 750, 250 L 850, 250"/>
-    <path d="M 750, 290 L 810, 290 L 850, 320"/>
-  </g>
-  <circle cx="850" cy="180" r="4" fill="#F59E0B"/>
-  <circle cx="850" cy="250" r="4" fill="#38BDF8"/>
-  <circle cx="850" cy="320" r="4" fill="#10B981"/>
+  <!-- Connectors: Core -> Google Web RPC -->
+  <path d="M 740, 160 L 780, 160 L 800, 140 L 830, 140" fill="none" stroke="#F59E0B" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+  <path d="M 740, 215 L 830, 215" fill="none" stroke="#38BDF8" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+  <path d="M 740, 270 L 780, 270 L 800, 290 L 830, 290" fill="none" stroke="#10B981" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
 
-  <!-- ==================== COLUMN 3: GOOGLE CLUSTER ==================== -->
-  <g transform="translate(860, 110)">
-    <text class="font-mono" font-size="12" fill="#F59E0B" font-weight="600" letter-spacing="1">GOOGLE GEMINI WEB CLUSTER</text>
+  <!-- ==================== COLUMN 3: GOOGLE GEMINI TARGETS ==================== -->
+  <g transform="translate(840, 92)">
+    <text class="mono tag" fill="#64748B">03. UPSTREAM RPC TARGETS</text>
 
-    <!-- Account 1: Argon Flagship -->
-    <g transform="translate(0, 22)">
-      <rect width="280" height="88" rx="10" fill="url(#cardBg)" stroke="#F59E0B" stroke-width="1.2"/>
-      <rect x="12" y="12" width="76" height="20" rx="4" fill="#451A03" stroke="#D97706"/>
-      <text class="font-mono" font-size="10" font-weight="700" fill="#FCD34D" x="50" y="26" text-anchor="middle">FLAGSHIP</text>
-      <text class="font-sans card-title" x="96" y="27">gemini-4-argon</text>
-      <text class="font-mono" font-size="11" fill="#94A3B8" x="14" y="52">Account Pool (Quota Monitored)</text>
-      <text class="font-mono" font-size="10" fill="#64748B" x="14" y="70">ID: 95a4c0abcba24364 | Reasoning: High</text>
+    <!-- Target 1: Argon -->
+    <g transform="translate(0, 18)">
+      <rect width="240" height="68" rx="6" fill="#0F172A" stroke="#F59E0B" stroke-width="1.2"/>
+      <text class="mono" font-size="11" font-weight="700" fill="#F59E0B" x="14" y="24">gemini-4-argon</text>
+      <text class="mono" font-size="10" fill="#94A3B8" x="14" y="42">ID: 95a4c0abcba24364</text>
+      <text class="mono" font-size="9" fill="#64748B" x="14" y="58">Flagship Reasoning &amp; Architecture</text>
     </g>
 
-    <!-- Account 2: Pro & Flash -->
-    <g transform="translate(0, 120)">
-      <rect width="280" height="88" rx="10" fill="url(#cardBg)" stroke="#27273A" stroke-width="1.2"/>
-      <text class="font-sans card-title" x="16" y="28">gemini-3.1-pro</text>
-      <text class="font-mono" font-size="11" fill="#94A3B8" x="16" y="50">Deep Analysis &amp; Large Context</text>
-      <text class="font-mono" font-size="10" fill="#64748B" x="16" y="68">ID: e6fa609c3fa255c0</text>
+    <!-- Target 2: Pro -->
+    <g transform="translate(0, 96)">
+      <rect width="240" height="68" rx="6" fill="#0F172A" stroke="#1E293B" stroke-width="1.2"/>
+      <text class="mono" font-size="11" font-weight="700" fill="#E2E8F0" x="14" y="24">gemini-3.1-pro</text>
+      <text class="mono" font-size="10" fill="#94A3B8" x="14" y="42">ID: e6fa609c3fa255c0</text>
+      <text class="mono" font-size="9" fill="#64748B" x="14" y="58">Deep Code Analysis &amp; Large Context</text>
     </g>
 
-    <!-- Account 3: Speed Tier -->
-    <g transform="translate(0, 218)">
-      <rect width="280" height="96" rx="10" fill="url(#cardBg)" stroke="#27273A" stroke-width="1.2"/>
-      <text class="font-sans card-title" x="16" y="26">gemini-3.8-flash &amp; Lite</text>
-      <text class="font-mono" font-size="11" fill="#94A3B8" x="16" y="46">High Throughput Ultra-Low Latency</text>
-      <text class="font-mono" font-size="10" fill="#10B981" x="16" y="66">Auto-Failover Destination on Exhaustion</text>
+    <!-- Target 3: Flash -->
+    <g transform="translate(0, 174)">
+      <rect width="240" height="74" rx="6" fill="#0F172A" stroke="#1E293B" stroke-width="1.2"/>
+      <text class="mono" font-size="11" font-weight="700" fill="#10B981" x="14" y="22">gemini-3.8-flash &amp; Lite</text>
+      <text class="mono" font-size="10" fill="#94A3B8" x="14" y="38">ID: 56fdd199312815e2</text>
+      <text class="mono" font-size="9" fill="#64748B" x="14" y="54">High-Throughput Generalist Tier</text>
+      <text class="mono" font-size="9" fill="#10B981" x="14" y="66">Failover Target on Quota Depletion</text>
     </g>
   </g>
 
-  <!-- ==================== FOOTER ==================== -->
-  <g transform="translate(60, 445)">
-    <text class="font-mono" font-size="11" fill="#475569">REST: /v1/chat/completions | /v1/messages | /v1/models | /admin/reload | /admin/cookies</text>
+  <!-- Technical Bottom Status Line -->
+  <line x1="40" y1="365" x2="1080" y2="365" stroke="#1E293B" stroke-width="1"/>
+  <g transform="translate(40, 390)">
+    <circle cx="4" cy="4" r="3" fill="#10B981"/>
+    <text class="mono" font-size="10" fill="#64748B" x="16" y="7">STATUS: PRODUCTION READY  |  BATExecute RPC: otAQ7b  |  StreamGenerate: Lamda.BardFrontendService</text>
   </g>
 </svg>
