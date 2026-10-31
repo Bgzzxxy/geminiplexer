@@ -155,6 +155,7 @@ func (s *AccountSession) StreamGenerate(ctx context.Context, prompt string, mode
 		for {
 			line, err := reader.ReadString('\n')
 			if err != nil {
+				log.Printf("[StreamGenerate] reader loop exited with err=%v, line_len=%d", err, len(line))
 				if err != io.EOF && ctx.Err() == nil {
 					ch <- GenerateChunk{IsDone: true}
 				}
