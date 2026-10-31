@@ -10,3 +10,4 @@ accounts.yaml
 # Binaries
 bin/
 gemini-to-api
+.superpowers/
