@@ -34,6 +34,7 @@ type AccountSession struct {
 	EndpointOverride       string
 	RotateEndpointOverride string
 	BatchExecOverride      string
+	GenerateOverride       string
 	CachedModels           []GeminiModel
 	LastUsed               time.Time
 	LastRotated            time.Time
