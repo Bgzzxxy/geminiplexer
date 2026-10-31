@@ -1,40 +1,40 @@
 # Knowledge Base: Gemini Web Internal Reverse Engineering
 
-Dokumentasi teknis mendalam mengenai arsitektur internal, struktur payload RPC, mitigasi anti-bot Google, dan protokol streaming pada Google Gemini Web (`gemini.google.com`).
+In-depth technical documentation covering the internal architecture, RPC payload schemas, Google anti-bot mitigations, and streaming protocols of Google Gemini Web (`gemini.google.com`).
 
 ---
 
-## 1. Mekanisme Autentikasi Google Web
+## 1. Google Web Authentication Mechanics
 
-### 1.1 Cookie Wajib
-Untuk mengakses Gemini Web tanpa login interaktif, diperlukan minimal 2 cookie utama dari domain `.google.com`:
-- `__Secure-1PSID`: Token identitas sesi akun pengguna. Bertahan lama (mingguan/bulanan), tetapi jika di-share atau digunakan di IP berbeda secara agresif dapat memicu tantangan CAPTCHA.
-- `__Secure-1PSIDTS`: Timestamp session token dinamis. Bertahan relatif pendek (12–24 jam). Jika token ini kedaluwarsa, Google mengarahkan request ke halaman login.
+### 1.1 Required Cookies
+To access Gemini Web without interactive browser login, at least two primary cookies from the `.google.com` domain are required:
+- `__Secure-1PSID`: Long-lived user account session identity token. Survives across weeks/months, but aggressive cross-IP usage may trigger CAPTCHA challenges.
+- `__Secure-1PSIDTS`: Dynamic timestamped session token. Relates to recent activity and has a shorter lifespan (12–24 hours). When this expires, Google redirects unauthenticated requests to the accounts login page.
 
-### 1.2 Ekstraksi Handshake Awal (`SNlM0e`)
-Google menyematkan token CSRF di dalam dokumen HTML `https://gemini.google.com/app` (atau `https://gemini.google.com/u/{slot}/app` untuk akun sekunder).
-- **Format Regex**:
-  - Pola utama: `"SNlM0e":"([^"]+)"`
-  - Pola fallback: `\["SNlM0e","([^"]+)"\]`
-- Token ini berawalan `AIaPT3...` dan **wajib** dikirim sebagai parameter form `at` pada seluruh RPC batchexecute dan StreamGenerate.
-- **Header User-Agent**: Wajib menggunakan User-Agent browser modern Chrome Windows/Linux yang konsisten. Menggunakan User-Agent default library (misal `Go-http-client` atau `python-requests`) langsung menghasilkan blokir bot 403 Forbidden.
+### 1.2 Initial Handshake & Token Extraction (`SNlM0e`)
+Google embeds a CSRF security token directly within the HTML document of `https://gemini.google.com/app` (or `https://gemini.google.com/u/{slot}/app` for secondary accounts):
+- **Extraction Regex Patterns**:
+  - Primary pattern: `"SNlM0e":"([^"]+)"`
+  - Fallback pattern: `\["SNlM0e","([^"]+)"\]`
+- The token begins with `AIaPT3...` and is **mandatory** as the `at` form parameter in all subsequent `batchexecute` and `StreamGenerate` RPC requests.
+- **User-Agent Requirement**: Requests must send a realistic, modern desktop Chrome User-Agent header (Windows or Linux). Default HTTP client identifiers (such as `Go-http-client` or `python-requests`) trigger immediate HTTP 403 Forbidden responses.
 
-### 1.3 Rotasi Sesi Otomatis (`RotateCookies`)
+### 1.3 Automated Session Refresh (`RotateCookies`)
 - **Endpoint**: `POST https://accounts.google.com/RotateCookies`
-- **Body**: String JSON statis persis: `[000,"-0000000000000000000"]`
-- **Headers**: Wajib mengirimkan cookie `__Secure-1PSID` dan `__Secure-1PSIDTS` saat ini.
-- **Respons**: Google merespons dengan header `Set-Cookie` berisi `__Secure-1PSIDTS` baru.
-- **Catatan Keamanan**: Rotasi tidak boleh dilakukan terlalu sering (default aman: 12-24 jam). Jika di-spam setiap beberapa menit, Google mendeteksinya sebagai anomali otomatis dan memblokir sesi akun. Serialisasi rotasi menggunakan mutex (`rotateMu`) untuk mencegah race condition antar request.
+- **Body**: Static JSON string: `[000,"-0000000000000000000"]`
+- **Headers**: Must supply current `__Secure-1PSID` and `__Secure-1PSIDTS` cookies.
+- **Response**: Google returns a `Set-Cookie` header containing a fresh `__Secure-1PSIDTS` token.
+- **Safety Precaution**: Cookie rotation should not occur too frequently (safe default: 12–24 hours). Rapid rotation attempts are flagged by Google fraud detection as automated abuse. The Go service protects rotations with a per-session mutex (`rotateMu`) to eliminate concurrent race collisions.
 
 ---
 
 ## 2. Model Discovery & Internal Model IDs (`otAQ7b`)
 
-Endpoint model registry Google Gemini Web menggunakan RPC internal `otAQ7b`:
+Google Gemini Web's model registry is queried through the internal RPC `otAQ7b`:
 - **Endpoint**: `POST https://gemini.google.com/_/BardChatUi/data/batchexecute?rpcids=otAQ7b&hl=en&rt=c`
 - **Payload**: `f.req=[[["otAQ7b","[]",null,"generic"]]]`
 
-Pada akun modern Google Gemini, array model berada di `payload[15]`. Setiap elemen memuat informasi spesifik:
+On modern accounts, selectable model metadata is stored in `payload[15]`. Each element contains:
 ```json
 [
   "95a4c0abcba24364",       // [0] Internal Model ID
@@ -50,8 +50,8 @@ Pada akun modern Google Gemini, array model berada di `payload[15]`. Setiap elem
 ]
 ```
 
-### Pemetaan Model Wire Format (Verified):
-| Model Publik | Internal Model ID | Model Number | Capacity | Capacity Field |
+### Verified Wire Format Mappings:
+| Public Model Name | Internal Google Model ID | Model Number | Capacity | Capacity Field |
 |---|---|---|---|---|
 | **Gemini 4 Argon** | `95a4c0abcba24364` | `4` | `2` | `12` |
 | **Gemini 3.1 Pro** | `e6fa609c3fa255c0` | `4` | `2` | `12` |
@@ -61,75 +61,75 @@ Pada akun modern Google Gemini, array model berada di `payload[15]`. Setiap elem
 
 ---
 
-## 3. Protokol `StreamGenerate` (Chat Inference)
+## 3. `StreamGenerate` Protocol (Inference)
 
 ### 3.1 Endpoint & Headers
 - **URL**: `POST https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate?at={SNlM0e}&hl=en&_reqid=12345&rt=c`
-- **Header Spesial Model Routing (`x-goog-ext-525001261-jspb`)**:
-  Untuk model spesifik seperti Argon atau Pro, header ini wajib dikirimkan sebagai array JSON 17 elemen:
+- **Model Routing Header (`x-goog-ext-525001261-jspb`)**:
+  When requesting specific flagship models (e.g., Argon or Pro), this header must be sent as a serialized 17-element JSON array:
   ```json
   [1, null, null, null, "{model_id}", null, null, 0, [4, 5, 6, 8], null, null, {capacity}, null, null, {model_number}, {thinking_level}, "{generation_uuid}"]
   ```
-  *(Catatan: Untuk mode `gemini-auto`, header ini dapat dihilangkan agar Gemini Web melakukan perutean otomatis tercepat).*
+  *(Note: For `gemini-auto`, omitting this header allows Gemini Web to perform automatic latency-optimized routing).*
 
-### 3.2 Struktur Payload Form `f.req` (81 Elemen)
-Payload `f.req` dibungkus dalam `outer = [null, json_string(inner)]`:
-- `inner[0]`: Konten pesan `[prompt]` (atau array multimodal file jika menyertakan gambar).
-- `inner[1]`: Bahasa `["en"]`.
-- `inner[2]`: Metadata percakapan `["", "", "", null, null, null, null, null, null, ""]`.
-- `inner[45]`: `1` -> **Mode Obrolan Temporer (Incognito)**. Mencegah percakapan tersimpan di histori akun Google pengguna dan menjaga akun tetap bersih.
-- `inner[59]`: UUID unik request.
-- `inner[79]`: Nomor model (`4` untuk Argon/Pro, `20` untuk Flash, `1` untuk Auto/Lite).
-- `inner[80]`: Tingkat penalaran thinking (`1` = Low, `2` = Medium, `3` = High).
+### 3.2 Form Payload Structure `f.req` (81 Elements)
+Payload `f.req` is encoded as `outer = [null, json_string(inner)]`:
+- `inner[0]`: Message content array `[prompt]` (or multimodal file references).
+- `inner[1]`: Language `["en"]`.
+- `inner[2]`: Conversation metadata `["", "", "", null, null, null, null, null, null, ""]`.
+- `inner[45]`: `1` -> **Temporary / Incognito Chat Mode**. Prevents queries from polluting the Google account's user history and maintains privacy.
+- `inner[59]`: Unique request UUID.
+- `inner[79]`: Model Number (`4` for Argon/Pro, `20` for Flash, `1` for Auto/Lite).
+- `inner[80]`: Thinking / Reasoning Effort Level (`1` = Low, `2` = Medium, `3` = High).
 
-### 3.3 Framing Respons & Ekstraksi Chunk
-Respons streaming Google bukanlah Server-Sent Events (SSE) standar murni, melainkan format chunked bertingkat:
+### 3.3 Response Framing & Chunk Extraction
+Google's streaming response uses layered length-prefixed chunking:
 ```
 )]}'\n
 177\n
 [["wrb.fr",null,"[null,[\"c_...\",\"r_...\"],{\"18\":\"...\",\"44\":true}]"]]\n
 5309\n
-[["wrb.fr",null,"[null,[\"c_...\",\"r_...\"],null,null,[[\"rc_...\",[\"Halo!\"],...]]]]"]]\n
+[["wrb.fr",null,"[null,[\"c_...\",\"r_...\"],null,null,[[\"rc_...\",[\"Hello!\"],...]]]]"]]\n
 ```
 
-#### Aturan Parsing Parser:
-1. Baris pertama `)]}'` adalah prefiks anti-XSSI Google -> abaikan.
-2. Baris yang murni berupa angka (misal `177`, `5309`) adalah **panjang byte frame (length prefix)** -> abaikan.
-3. Sambungkan string JSON ke buffer (`frameBuf`) sampai membentuk JSON envelope utuh yang dapat di-unmarshal (`json.Unmarshal == nil`).
-4. **Segera reset buffer** setiap kali sebuah envelope JSON berhasil di-unmarshal (terlepas dari apakah frame tersebut memuat teks atau sekadar metadata), untuk mencegah korupsi buffer pada frame berikutnya.
-5. **Kumulatif vs Delta**: Gemini Web mengirimkan teks secara kumulatif (`candidate[0][1][0]`). Parser menghitung delta teks dengan memotong prefiks sebelumnya:
+#### Parsing Rules:
+1. The first line `)]}'` is Google's anti-XSSI security prefix -> discard.
+2. Lines containing strictly digits (e.g., `177`, `5309`) indicate **frame byte lengths** -> discard.
+3. Concatenate JSON chunks into an assembly buffer (`frameBuf`) until a valid JSON envelope parses successfully (`json.Unmarshal == nil`).
+4. **Immediately reset the assembly buffer** after successfully parsing an envelope, even if that envelope only contained metadata, to prevent buffer corruption across subsequent frames.
+5. **Cumulative vs. Delta Output**: Gemini Web streams response candidates cumulatively (`candidate[0][1][0]`). The gateway tracks previously emitted text and computes incremental deltas:
    `delta = currentText[len(previousText):]`
 
 ---
 
-## 4. Mekanisme Multi-Account & Downgrade Quarantine
+## 4. Multi-Account Pool & Downgrade Quarantine
 
 ```
-                        Request Masuk
-                             │
-                             ▼
-                 [Least Recently Used (LRU)]
-                             │
-              Apakah Akun dalam Cooldown?
-               ├── Ya  ──► Cari Akun Berikutnya
-               └── Tidak
-                             │
-               Jeda Anti-Burst (2s - 5s)
-                             │
-                             ▼
-                     Eksekusi Request
-                             │
-            Cek ModelID pada Frame Pertama
-                             │
-             Apakah Terjadi Downgrade Diam-diam?
-               ├── Ya  ──► Set StatusModelDowngraded (Cooldown 15m)
-               │           Failover ke Akun Berikutnya di Pool
-               └── Tidak
-                             │
-                             ▼
-                   Kirim Stream ke Klien
+                        Incoming Request
+                               │
+                               ▼
+                   [Least Recently Used (LRU)]
+                               │
+                Is Account in Active Cooldown?
+                 ├── Yes ──► Try Next Pool Account
+                 └── No
+                               │
+                 Anti-Burst Gap Delay (2s - 5s)
+                               │
+                               ▼
+                       Execute Request
+                               │
+                 Inspect Initial Chunk ModelID
+                               │
+                   Was Model Silently Downgraded?
+                 ├── Yes ──► Set StatusModelDowngraded (15m Cooldown)
+                 │           Failover to Next Account in Pool
+                 └── No
+                               │
+                               ▼
+                      Stream Output to Client
 ```
 
-1. **Isolasi Akun**: Setiap akun memiliki cookie jar, session ID, dan token `SNlM0e` masing-masing yang tidak saling mencemari.
-2. **Penanganan Slot Akun**: Jika beberapa akun Google di-login pada browser yang sama, slot URL `/u/0/`, `/u/1/`, `/u/2/`, `/u/3/`, `/u/4/` dipetakan ke field `auth_user` pada konfigurasi.
-3. **Failover Otomatis**: Jika sebuah akun mengalami HTTP 401/403 (token kedaluwarsa), akun tersebut langsung ditandai `StatusAuthError`, memicu re-inisialisasi latar belakang via `sess.Init()`, dan permintaan dialihkan ke akun sehat lainnya.
+1. **Session Isolation**: Each account retains its own distinct cookie jar, session identifier, and CSRF token without cross-contamination.
+2. **Account Slot Multi-Login**: When multiple Google accounts share a browser session, URL slot paths (`/u/0/`, `/u/1/`, `/u/2/`, `/u/3/`, `/u/4/`) map cleanly to the `auth_user` configuration field.
+3. **Automated Recovery**: When an account returns HTTP 401/403 (session invalidated), the pool marks it as `StatusAuthError`, triggers an asynchronous re-initialization handshake via `sess.Init()`, and immediately routes the in-flight request to the next available healthy account.
