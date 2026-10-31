@@ -3,7 +3,7 @@
 package main
 
 import (
-	"gemini-relay/internal/pool"
+	"geminiplexer/internal/pool"
 )
 
 func setupReloadSignal(configPath string, accountPool *pool.AccountPool) {

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"gemini-relay/internal/gemini"
+	"geminiplexer/internal/gemini"
 )
 
 type ErrorKind int

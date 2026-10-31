@@ -57,13 +57,13 @@ jobs:
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: 0
         run: |
-          OUTPUT_NAME="gemini-relay${{ matrix.ext }}"
+          OUTPUT_NAME="geminiplexer${{ matrix.ext }}"
           go build -ldflags="-s -w" -o "dist/${OUTPUT_NAME}" ./cmd/server
 
       - name: Package Release
         run: |
           mkdir -p release_staging
-          cp "dist/gemini-relay${{ matrix.ext }}" release_staging/
+          cp "dist/geminiplexer${{ matrix.ext }}" release_staging/
           cp accounts.example.yaml release_staging/
           cp README.md release_staging/
           cp LICENSE release_staging/
@@ -71,23 +71,23 @@ jobs:
           if [ "${{ matrix.os }}" = "windows" ]; then
             cp scripts/start.bat release_staging/
             cd release_staging
-            zip -r "../gemini-relay-${{ matrix.os }}-${{ matrix.arch }}.zip" .
+            zip -r "../geminiplexer-${{ matrix.os }}-${{ matrix.arch }}.zip" .
           else
             if [ "${{ matrix.os }}" = "darwin" ]; then
-              cp launchd/com.gemini-relay.plist release_staging/
+              cp launchd/com.geminiplexer.plist release_staging/
             fi
             if [ "${{ matrix.os }}" = "linux" ]; then
               cp systemd/gemini-to-api.service release_staging/
             fi
             cd release_staging
-            tar -czvf "../gemini-relay-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" .
+            tar -czvf "../geminiplexer-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" .
           fi
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: gemini-relay-${{ matrix.os }}-${{ matrix.arch }}
-          path: gemini-relay-${{ matrix.os }}-${{ matrix.arch }}.*
+          name: geminiplexer-${{ matrix.os }}-${{ matrix.arch }}
+          path: geminiplexer-${{ matrix.os }}-${{ matrix.arch }}.*
 
   publish:
     name: Publish GitHub Release

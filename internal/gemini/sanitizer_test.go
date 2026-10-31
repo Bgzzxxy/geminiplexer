@@ -2,7 +2,7 @@ package gemini_test
 
 import (
 	"testing"
-	"gemini-relay/internal/gemini"
+	"geminiplexer/internal/gemini"
 )
 
 func TestSanitizeTextStripsCitations(t *testing.T) {

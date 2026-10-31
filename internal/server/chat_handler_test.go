@@ -5,10 +5,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"gemini-relay/internal/config"
-	"gemini-relay/internal/gemini"
-	"gemini-relay/internal/pool"
-	"gemini-relay/internal/server"
+	"geminiplexer/internal/config"
+	"geminiplexer/internal/gemini"
+	"geminiplexer/internal/pool"
+	"geminiplexer/internal/server"
 )
 
 func TestCumulativeTextDeltaStreaming(t *testing.T) {

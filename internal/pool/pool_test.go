@@ -3,9 +3,9 @@ package pool_test
 import (
 	"context"
 	"testing"
-	"gemini-relay/internal/config"
-	"gemini-relay/internal/gemini"
-	"gemini-relay/internal/pool"
+	"geminiplexer/internal/config"
+	"geminiplexer/internal/gemini"
+	"geminiplexer/internal/pool"
 )
 
 func TestPoolLRUSelection(t *testing.T) {

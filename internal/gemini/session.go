@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"gemini-relay/internal/config"
+	"geminiplexer/internal/config"
 )
 
 var (

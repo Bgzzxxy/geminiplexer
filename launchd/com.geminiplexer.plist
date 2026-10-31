@@ -3,20 +3,20 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.gemini-relay</string>
+    <string>com.geminiplexer</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/gemini-relay</string>
+        <string>/usr/local/bin/geminiplexer</string>
         <string>-config</string>
-        <string>/usr/local/etc/gemini-relay/accounts.yaml</string>
+        <string>/usr/local/etc/geminiplexer/accounts.yaml</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/tmp/gemini-relay.log</string>
+    <string>/tmp/geminiplexer.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/gemini-relay.error.log</string>
+    <string>/tmp/geminiplexer.error.log</string>
 </dict>
 </plist>

@@ -3,7 +3,7 @@ package toolbridge_test
 import (
 	"strings"
 	"testing"
-	"gemini-relay/internal/toolbridge"
+	"geminiplexer/internal/toolbridge"
 )
 
 func TestParseToolCallsValid(t *testing.T) {

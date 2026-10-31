@@ -22,13 +22,13 @@ build_target() {
 }
 
 if [ "$1" = "all" ]; then
-    echo "=== Building Gemini Relay for all platforms ==="
-    build_target "linux" "amd64" "bin/gemini-relay-linux-amd64"
-    build_target "linux" "arm64" "bin/gemini-relay-linux-arm64"
-    build_target "darwin" "amd64" "bin/gemini-relay-darwin-amd64"
-    build_target "darwin" "arm64" "bin/gemini-relay-darwin-arm64"
-    build_target "windows" "amd64" "bin/gemini-relay-windows-amd64.exe"
-    build_target "windows" "arm64" "bin/gemini-relay-windows-arm64.exe"
+    echo "=== Building Geminiplexer for all platforms ==="
+    build_target "linux" "amd64" "bin/geminiplexer-linux-amd64"
+    build_target "linux" "arm64" "bin/geminiplexer-linux-arm64"
+    build_target "darwin" "amd64" "bin/geminiplexer-darwin-amd64"
+    build_target "darwin" "arm64" "bin/geminiplexer-darwin-arm64"
+    build_target "windows" "amd64" "bin/geminiplexer-windows-amd64.exe"
+    build_target "windows" "arm64" "bin/geminiplexer-windows-arm64.exe"
     echo "=== All platform builds completed successfully in bin/ ==="
 else
     build_target "linux" "amd64" "bin/gemini-to-api"

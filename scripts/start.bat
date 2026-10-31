@@ -1,9 +1,9 @@
 @echo off
 setlocal
-title Gemini Relay Gateway
+title Geminiplexer Gateway
 
 echo ========================================================
-echo        Gemini Relay - High Performance Gateway
+echo        Geminiplexer - High Performance Gateway
 echo ========================================================
 echo.
 
@@ -21,8 +21,8 @@ if not exist accounts.yaml (
     )
 )
 
-echo [STARTING] Launching Gemini Relay Gateway on http://127.0.0.1:4981 ...
-gemini-relay.exe -config accounts.yaml
+echo [STARTING] Launching Geminiplexer Gateway on http://127.0.0.1:4981 ...
+geminiplexer.exe -config accounts.yaml
 
 if %ERRORLEVEL% NEQ 0 (
     echo.

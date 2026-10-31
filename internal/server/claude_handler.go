@@ -10,9 +10,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"gemini-relay/internal/gemini"
-	"gemini-relay/internal/pool"
-	"gemini-relay/internal/toolbridge"
+	"geminiplexer/internal/gemini"
+	"geminiplexer/internal/pool"
+	"geminiplexer/internal/toolbridge"
 )
 
 type ClaudeTool struct {

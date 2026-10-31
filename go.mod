@@ -1,4 +1,4 @@
-module gemini-relay
+module geminiplexer
 
 go 1.23.2
 

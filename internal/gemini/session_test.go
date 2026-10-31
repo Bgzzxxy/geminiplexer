@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"gemini-relay/internal/config"
-	"gemini-relay/internal/gemini"
+	"geminiplexer/internal/config"
+	"geminiplexer/internal/gemini"
 )
 
 func TestSessionInitExtractsSNlM0e(t *testing.T) {

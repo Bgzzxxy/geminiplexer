@@ -1,11 +1,11 @@
 <div align="center">
 
-# ⚡ Gemini Relay
+# ⚡ Geminiplexer
 ### High-Performance Bare-Metal Reverse-Engineered OpenAI & Anthropic Gateway for Google Gemini Web
 
 [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=for-the-badge&logo=go)](https://golang.org)
-[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-E95420?style=for-the-badge&logo=linux)](https://github.com/Bgzzxxy/gemini-relay)
-[![Docker Free](https://img.shields.io/badge/Docker-Zero%20Dependency-2496ED?style=for-the-badge)](https://github.com/Bgzzxxy/gemini-relay)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-E95420?style=for-the-badge&logo=linux)](https://github.com/Bgzzxxy/geminiplexer)
+[![Docker Free](https://img.shields.io/badge/Docker-Zero%20Dependency-2496ED?style=for-the-badge)](https://github.com/Bgzzxxy/geminiplexer)
 [![OpenAI Protocol](https://img.shields.io/badge/API-OpenAI%20Compatible-412991?style=for-the-badge&logo=openai)](https://platform.openai.com)
 [![Anthropic Protocol](https://img.shields.io/badge/API-Anthropic%20Claude%20Compatible-D97757?style=for-the-badge&logo=anthropic)](https://docs.anthropic.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
@@ -47,7 +47,7 @@ Google Gemini Web offers state-of-the-art flagship reasoning models like **Gemin
 
 Existing third-party solutions often depend on heavy Docker containers, Node.js runtimes with high memory footprints, lack multi-account quota pooling, or silently fail when Google throttles a model tier.
 
-**Gemini Relay** solves this with a native, static binary:
+**Geminiplexer** solves this with a native, static binary:
 - **Dual Protocol**: First-class support for both OpenAI (`/v1/chat/completions`) and Anthropic Claude (`/v1/messages` and `/messages`) protocols.
 - **Zero Docker & Multiplatform**: Compiles natively for Linux, Windows (`.exe`), and macOS (Apple Silicon & Intel) with under 20 MB RAM usage.
 - **Multi-Account Pooling**: Pools multiple Google accounts with Least-Recently-Used (LRU) scheduling and anti-burst rate limiting.
@@ -85,7 +85,7 @@ Existing third-party solutions often depend on heavy Docker containers, Node.js 
                                 └───────────┬───────────┘
                                             ▼
                  ┌─────────────────────────────────────────────────────┐
-                 │                Gemini Relay Gateway                 │
+                 │                Geminiplexer Gateway                 │
                  │   - Dual Protocol Translators (OpenAI & Anthropic)  │
                  │   - Tool Bridge (JSON Schema Engine)                │
                  │   - Output Sanitizer & Incremental Delta Slicer     │
@@ -125,14 +125,14 @@ All models are dynamically discovered via batchexecute RPC `otAQ7b` and mapped d
 
 ## 🚀 Cross-Platform Quick Start
 
-You can either download pre-built binaries from **[GitHub Releases](https://github.com/Bgzzxxy/gemini-relay/releases)** or build from source using Go.
+You can either download pre-built binaries from **[GitHub Releases](https://github.com/Bgzzxxy/geminiplexer/releases)** or build from source using Go.
 
 ### 🐧 Linux
 
 ```bash
 # Build from source
-git clone https://github.com/Bgzzxxy/gemini-relay.git
-cd gemini-relay
+git clone https://github.com/Bgzzxxy/geminiplexer.git
+cd geminiplexer
 ./scripts/build.sh
 
 # Configure and run
@@ -142,20 +142,20 @@ cp accounts.example.yaml accounts.yaml
 
 ### 🪟 Windows
 
-1. Download `gemini-relay-windows-amd64.zip` from Releases and extract it.
+1. Download `geminiplexer-windows-amd64.zip` from Releases and extract it.
 2. Edit `accounts.yaml` with your cookies.
-3. Double-click **`start.bat`** (or run `gemini-relay.exe -config accounts.yaml` in PowerShell/CMD).
+3. Double-click **`start.bat`** (or run `geminiplexer.exe -config accounts.yaml` in PowerShell/CMD).
 
 ### 🍎 macOS (Apple Silicon & Intel)
 
 ```bash
 # Extract pre-built binary or compile
-tar -xzvf gemini-relay-darwin-arm64.tar.gz
-cd gemini-relay
+tar -xzvf geminiplexer-darwin-arm64.tar.gz
+cd geminiplexer
 
 # Run
 cp accounts.example.yaml accounts.yaml
-./gemini-relay -config accounts.yaml
+./geminiplexer -config accounts.yaml
 ```
 
 ---
@@ -200,8 +200,8 @@ systemctl --user enable --now gemini-to-api.service
 
 ### macOS (`launchd`)
 ```bash
-cp launchd/com.gemini-relay.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.gemini-relay.plist
+cp launchd/com.geminiplexer.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.geminiplexer.plist
 ```
 
 ---

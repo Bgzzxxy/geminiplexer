@@ -11,10 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	"gemini-relay/internal/config"
-	"gemini-relay/internal/gemini"
-	"gemini-relay/internal/pool"
-	"gemini-relay/internal/server"
+	"geminiplexer/internal/config"
+	"geminiplexer/internal/gemini"
+	"geminiplexer/internal/pool"
+	"geminiplexer/internal/server"
 )
 
 func main() {

@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"strings"
 
-	"gemini-relay/internal/config"
-	"gemini-relay/internal/gemini"
+	"geminiplexer/internal/config"
+	"geminiplexer/internal/gemini"
 )
 
 type AdminCookieUpdateRequest struct {
