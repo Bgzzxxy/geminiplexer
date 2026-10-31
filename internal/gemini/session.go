@@ -33,6 +33,8 @@ type AccountSession struct {
 	Client                 *http.Client
 	EndpointOverride       string
 	RotateEndpointOverride string
+	BatchExecOverride      string
+	CachedModels           []GeminiModel
 	LastUsed               time.Time
 	LastRotated            time.Time
 	CooldownUntil          time.Time
