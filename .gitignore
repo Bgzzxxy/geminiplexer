@@ -11,3 +11,4 @@ accounts.yaml
 bin/
 gemini-to-api
 .superpowers/
+docs/

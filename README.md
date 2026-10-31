@@ -11,7 +11,7 @@
 
 <p align="center">
   <b>Transforms Google Gemini Web into a lightning-fast, production-ready OpenAI-compatible REST API.</b><br/>
-  <i>Engineered natively in pure Go with multi-account pooling, anti-bot defenses, downgrade quarantine failover, and native tool calling for autonomous AI agents like Hermes Agent and 9router.</i>
+  <i>Engineered natively in pure Go with multi-account pooling, anti-bot defenses, downgrade quarantine failover, and native tool calling.</i>
 </p>
 
 ---
@@ -27,7 +27,7 @@
 - [Quick Start](#-quick-start)
 - [Configuration Guide (`accounts.yaml`)](#-configuration-guide-accountsyaml)
 - [Systemd User Service Daemon](#-systemd-user-service-daemon)
-- [9router & Hermes Agent Integration](#-9router--hermes-agent-integration)
+- [9router Integration](#-9router-integration)
 - [API Usage Examples](#-api-usage-examples)
 - [Technical Knowledge Base](#-technical-knowledge-base)
 - [Security & Disclaimer](#-security--disclaimer)
@@ -36,7 +36,7 @@
 
 ## 🎯 Why This Exists
 
-Google Gemini Web offers state-of-the-art flagship reasoning models like **Gemini 4 Argon** and **Gemini 3.1 Pro**, but they are not accessible via standard OpenAI client libraries or autonomous agents without expensive enterprise subscriptions or official Studio rate limits.
+Google Gemini Web offers state-of-the-art flagship reasoning models like **Gemini 4 Argon** and **Gemini 3.1 Pro**, but they are not accessible via standard OpenAI client libraries without expensive enterprise subscriptions or official Studio rate limits.
 
 Existing third-party solutions often depend on heavy Docker containers, Node.js runtimes with high memory footprints, lack multi-account quota pooling, or silently fail when Google throttles a model tier.
 
@@ -44,7 +44,7 @@ Existing third-party solutions often depend on heavy Docker containers, Node.js 
 - **Zero Docker**: Runs natively bare-metal (< 20 MB RAM footprint).
 - **Multi-Account Pooling**: Pools multiple Google accounts with Least-Recently-Used (LRU) scheduling and anti-burst rate limiting.
 - **Quota Downgrade Protection**: Instantly detects when Google attempts to silently downgrade a Pro/Argon request to Flash, quarantines that account, and fails over to an account with fresh quota.
-- **Native Tool Calling**: Injects tool definition schemas and extracts structured JSON tool arguments (`finish_reason: "tool_calls"`) for agentic workflows.
+- **Native Tool Calling**: Injects tool definition schemas and extracts structured JSON tool arguments (`finish_reason: "tool_calls"`).
 
 ---
 
@@ -67,7 +67,7 @@ Existing third-party solutions often depend on heavy Docker containers, Node.js 
 
 ```
                           ┌───────────────────────────────────────┐
-                          │   Client / Hermes Agent / 9router     │
+                          │   Client / OpenAI SDK / 9router       │
                           └──────────────────┬────────────────────┘
                                              │ HTTP /v1/chat/completions (tools, SSE)
                                              ▼
@@ -188,11 +188,10 @@ journalctl --user -u gemini-to-api.service -f
 
 ---
 
-## 🌐 9router & Hermes Agent Integration
+## 🌐 9router Integration
 
-The gateway integrates cleanly with [9router](https://github.com/ntthanh2603/9router) and autonomous AI coding agents.
+The gateway integrates cleanly with [9router](https://github.com/ntthanh2603/9router).
 
-### In 9router:
 - **Base URL**: `http://127.0.0.1:4981/v1`
 - **Prefix**: `gemini-to-api`
 - **Available Models**:
@@ -200,15 +199,7 @@ The gateway integrates cleanly with [9router](https://github.com/ntthanh2603/9ro
   - `gemini-to-api/gemini-3.1-pro` (or combo alias `gemini-3.1-pro`, `pro`)
   - `gemini-to-api/gemini-3.8-flash`
   - `gemini-to-api/gemini-flash-lite`
-
-### In Hermes Agent (`~/.hermes/config.yaml`):
-```yaml
-model:
-  default: "gemini-4-argon"
-  provider: "custom"
-  base_url: "http://127.0.0.1:20128/v1" # or direct: http://127.0.0.1:4981/v1
-  api_key: ${OPENAI_API_KEY}
-```
+  - `gemini-to-api/gemini-auto`
 
 ---
 
