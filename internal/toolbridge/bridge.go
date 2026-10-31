@@ -45,13 +45,15 @@ func InjectTools(systemPrompt string, tools []OpenAITool) string {
 		sb.WriteString("\n\n")
 	}
 
-	sb.WriteString("# TOOL CALLING FORMAT\n")
-	sb.WriteString("You have access to the following tools:\n")
+	sb.WriteString("# CRITICAL DIRECTIVE: TOOL USE ENFORCEMENT\n")
+	sb.WriteString("You have access to the following operational tools to interact with the environment, execute commands, and read/write files:\n")
 	sb.WriteString(string(toolsJSON))
 	sb.WriteString("\n\n")
-	sb.WriteString("To call a tool, return a markdown JSON block with the function name and arguments:\n")
+	sb.WriteString("When you need to perform actions (such as running terminal commands, creating files, searching, or reading code), you MUST immediately invoke the appropriate tool using the JSON schema below.\n")
+	sb.WriteString("Do NOT claim, pretend, or narrate that you have performed an action without generating the tool call block.\n")
+	sb.WriteString("To call a tool, you MUST output ONLY a markdown JSON block in this exact format:\n")
 	sb.WriteString("```json\n{\n  \"name\": \"function_name\",\n  \"arguments\": {\"param1\": \"value1\"}\n}\n```\n")
-	sb.WriteString("If no tool is needed, respond directly with normal text without code fences.\n")
+	sb.WriteString("Never decline tool execution by saying you lack environment access. If a tool is listed above, you have full access to it.\n")
 
 	return sb.String()
 }

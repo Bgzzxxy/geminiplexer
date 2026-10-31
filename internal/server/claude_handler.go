@@ -296,6 +296,109 @@ func (s *Server) handleClaudeMessages(w http.ResponseWriter, r *http.Request) {
 		var prevText string
 		var totalOutputTokens int
 
+		// When tools are defined, aggregate to emit clean tool_use content blocks
+		if len(req.Tools) > 0 {
+			var fullText strings.Builder
+			for _, c := range bufferedChunks {
+				if c.Text != "" {
+					fullText.Reset()
+					fullText.WriteString(c.Text)
+				}
+			}
+			for chunk := range streamChan {
+				if chunk.Text != "" {
+					fullText.Reset()
+					fullText.WriteString(chunk.Text)
+				}
+			}
+
+			finalContent := fullText.String()
+			parsedCalls, remaining, ok := toolbridge.ParseToolCalls(finalContent)
+			if ok {
+				// 1. Emit text delta if any remaining text
+				if remaining != "" {
+					deltaEv := map[string]any{
+						"type":  "content_block_delta",
+						"index": 0,
+						"delta": map[string]any{
+							"type": "text_delta",
+							"text": remaining,
+						},
+					}
+					b, _ := json.Marshal(deltaEv)
+					fmt.Fprintf(w, "event: content_block_delta\ndata: %s\n\n", string(b))
+					flusher.Flush()
+				}
+
+				// Close initial text block
+				blockStop := map[string]any{
+					"type":  "content_block_stop",
+					"index": 0,
+				}
+				b, _ := json.Marshal(blockStop)
+				fmt.Fprintf(w, "event: content_block_stop\ndata: %s\n\n", string(b))
+				flusher.Flush()
+
+				// Emit tool_use blocks
+				for i, call := range parsedCalls {
+					blockIndex := i + 1
+					toolUseStart := map[string]any{
+						"type":  "content_block_start",
+						"index": blockIndex,
+						"content_block": map[string]any{
+							"type":  "tool_use",
+							"id":    call.ID,
+							"name":  call.Function.Name,
+							"input": map[string]any{},
+						},
+					}
+					b, _ := json.Marshal(toolUseStart)
+					fmt.Fprintf(w, "event: content_block_start\ndata: %s\n\n", string(b))
+					flusher.Flush()
+
+					toolUseDelta := map[string]any{
+						"type":  "content_block_delta",
+						"index": blockIndex,
+						"delta": map[string]any{
+							"type":         "input_json_delta",
+							"partial_json": call.Function.Arguments,
+						},
+					}
+					b, _ = json.Marshal(toolUseDelta)
+					fmt.Fprintf(w, "event: content_block_delta\ndata: %s\n\n", string(b))
+					flusher.Flush()
+
+					toolUseStop := map[string]any{
+						"type":  "content_block_stop",
+						"index": blockIndex,
+					}
+					b, _ = json.Marshal(toolUseStop)
+					fmt.Fprintf(w, "event: content_block_stop\ndata: %s\n\n", string(b))
+					flusher.Flush()
+				}
+
+				// message_delta with stop_reason: tool_use
+				msgDelta := map[string]any{
+					"type": "message_delta",
+					"delta": map[string]any{
+						"stop_reason":   "tool_use",
+						"stop_sequence": nil,
+					},
+					"usage": map[string]any{
+						"output_tokens": len(finalContent) / 4,
+					},
+				}
+				b, _ = json.Marshal(msgDelta)
+				fmt.Fprintf(w, "event: message_delta\ndata: %s\n\n", string(b))
+				flusher.Flush()
+
+				// message_stop
+				fmt.Fprintf(w, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
+				flusher.Flush()
+				return
+			}
+		}
+
 		processChunk := func(chunk gemini.GenerateChunk) {
 			if chunk.IsDone {
 				return

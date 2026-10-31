@@ -33,7 +33,7 @@ func TestInjectTools(t *testing.T) {
 	}
 
 	prompt := toolbridge.InjectTools("You are a helpful assistant.", tools)
-	if !strings.Contains(prompt, "get_weather") || !strings.Contains(prompt, "TOOL CALLING FORMAT") {
+	if !strings.Contains(prompt, "get_weather") || !strings.Contains(prompt, "TOOL USE ENFORCEMENT") {
 		t.Errorf("expected prompt to include tool definition, got: %s", prompt)
 	}
 }

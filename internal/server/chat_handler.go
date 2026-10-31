@@ -267,6 +267,164 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// When tools are requested, aggregate stream to detect and structure tool calls properly
+		if len(req.Tools) > 0 {
+			var fullText strings.Builder
+			for _, c := range bufferedChunks {
+				if c.Reasoning != "" {
+					chunkResp := ChatCompletionChunk{
+						ID:      reqID,
+						Object:  "chat.completion.chunk",
+						Created: created,
+						Model:   modelName,
+						Choices: []StreamChoice{
+							{
+								Index: 0,
+								Delta: Delta{ReasoningContent: c.Reasoning + "\n"},
+							},
+						},
+					}
+					b, _ := json.Marshal(chunkResp)
+					fmt.Fprintf(w, "data: %s\n\n", string(b))
+					flusher.Flush()
+				}
+				if c.Text != "" {
+					fullText.Reset()
+					fullText.WriteString(c.Text)
+				}
+			}
+
+			for chunk := range streamChan {
+				if chunk.Reasoning != "" {
+					chunkResp := ChatCompletionChunk{
+						ID:      reqID,
+						Object:  "chat.completion.chunk",
+						Created: created,
+						Model:   modelName,
+						Choices: []StreamChoice{
+							{
+								Index: 0,
+								Delta: Delta{ReasoningContent: chunk.Reasoning + "\n"},
+							},
+						},
+					}
+					b, _ := json.Marshal(chunkResp)
+					fmt.Fprintf(w, "data: %s\n\n", string(b))
+					flusher.Flush()
+				}
+				if chunk.Text != "" {
+					fullText.Reset()
+					fullText.WriteString(chunk.Text)
+				}
+			}
+
+			finalContent := fullText.String()
+			parsedCalls, remaining, ok := toolbridge.ParseToolCalls(finalContent)
+			var toolCalls []toolbridge.ToolCall
+			if ok {
+				toolCalls = parsedCalls
+				finalContent = remaining
+			} else if strings.Contains(finalContent, "```json") || strings.Contains(finalContent, "\"name\":") {
+				// Repair attempt
+				repairPrompt := toolbridge.BuildRepairPrompt(finalContent, "JSON validation failed")
+				repairChan, err := sess.StreamGenerate(r.Context(), repairPrompt, gModel, thinkingLevel)
+				if err == nil {
+					var repairText string
+					for rc := range repairChan {
+						if rc.Text != "" {
+							repairText = rc.Text
+						}
+					}
+					if fixedCalls, fixedRem, ok := toolbridge.ParseToolCalls(repairText); ok {
+						toolCalls = fixedCalls
+						finalContent = fixedRem
+					}
+				}
+			}
+
+			if len(toolCalls) > 0 {
+				// Stream tool calls
+				for i, tc := range toolCalls {
+					cResp := ChatCompletionChunk{
+						ID:      reqID,
+						Object:  "chat.completion.chunk",
+						Created: created,
+						Model:   modelName,
+						Choices: []StreamChoice{
+							{
+								Index: 0,
+								Delta: Delta{
+									Role:      "assistant",
+									ToolCalls: []toolbridge.ToolCall{tc},
+								},
+							},
+						},
+					}
+					b, _ := json.Marshal(cResp)
+					fmt.Fprintf(w, "data: %s\n\n", string(b))
+					flusher.Flush()
+					_ = i
+				}
+
+				// Final tool_calls stop chunk
+				cResp := ChatCompletionChunk{
+					ID:      reqID,
+					Object:  "chat.completion.chunk",
+					Created: created,
+					Model:   modelName,
+					Choices: []StreamChoice{
+						{
+							Index:        0,
+							Delta:        Delta{},
+							FinishReason: "tool_calls",
+						},
+					},
+				}
+				b, _ := json.Marshal(cResp)
+				fmt.Fprintf(w, "data: %s\n\n", string(b))
+				flusher.Flush()
+			} else {
+				// No tool calls detected: stream the final text content
+				if finalContent != "" {
+					cResp := ChatCompletionChunk{
+						ID:      reqID,
+						Object:  "chat.completion.chunk",
+						Created: created,
+						Model:   modelName,
+						Choices: []StreamChoice{
+							{
+								Index: 0,
+								Delta: Delta{Content: finalContent},
+							},
+						},
+					}
+					b, _ := json.Marshal(cResp)
+					fmt.Fprintf(w, "data: %s\n\n", string(b))
+					flusher.Flush()
+				}
+				cResp := ChatCompletionChunk{
+					ID:      reqID,
+					Object:  "chat.completion.chunk",
+					Created: created,
+					Model:   modelName,
+					Choices: []StreamChoice{
+						{
+							Index:        0,
+							Delta:        Delta{},
+							FinishReason: "stop",
+						},
+					},
+				}
+				b, _ := json.Marshal(cResp)
+				fmt.Fprintf(w, "data: %s\n\n", string(b))
+				flusher.Flush()
+			}
+
+			fmt.Fprintf(w, "data: [DONE]\n\n")
+			flusher.Flush()
+			return
+		}
+
 		var prevText string
 		processChunk := func(chunk gemini.GenerateChunk) {
 			if chunk.IsDone {
