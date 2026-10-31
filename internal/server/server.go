@@ -23,6 +23,7 @@ func NewServer(cfg *config.Config, p *pool.AccountPool) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/models", s.handleModels)
 	mux.HandleFunc("/v1/chat/completions", s.handleChatCompletions)
+	mux.HandleFunc("/admin/cookies", s.handleAdminCookies)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
