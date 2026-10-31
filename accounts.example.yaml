@@ -1,0 +1,17 @@
+# Gemini Web To API Configuration Example
+host: "127.0.0.1"
+port: 8787
+admin_key: "change_this_secret_admin_token"
+
+accounts:
+  - id: "account_1"
+    # Copy full Cookie header from gemini.google.com F12 network tab (must include __Secure-1PSID and __Secure-1PSIDTS)
+    cookies: "__Secure-1PSID=...; __Secure-1PSIDTS=..."
+    # Leave empty if URL is gemini.google.com/app, or specify slot (e.g. "2" for /u/2/app)
+    auth_user: ""
+    refresh_interval_min: 1440
+
+  - id: "account_2"
+    cookies: "__Secure-1PSID=...; __Secure-1PSIDTS=..."
+    auth_user: "1"
+    refresh_interval_min: 1440

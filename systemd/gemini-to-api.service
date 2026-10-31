@@ -1,0 +1,15 @@
+[Unit]
+Description=Gemini Web To API Bare-Metal Gateway
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/bagus/PROJECT/gemini-to-api
+ExecStart=/home/bagus/PROJECT/gemini-to-api/bin/gemini-to-api -config /home/bagus/PROJECT/gemini-to-api/accounts.yaml
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
