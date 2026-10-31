@@ -12,3 +12,9 @@ bin/
 gemini-to-api
 .superpowers/
 docs/
+
+# Private Web Dashboard
+dashboard/
+internal/server/dist/
+internal/server/dashboard_embedded.go
+
