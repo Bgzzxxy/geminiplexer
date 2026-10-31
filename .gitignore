@@ -1,0 +1,12 @@
+# Reference repo
+reference-gemini-web-to-api/
+
+# Secrets and cookies
+.cookies/
+accounts.yaml
+*.env
+.env
+
+# Binaries
+bin/
+gemini-to-api
