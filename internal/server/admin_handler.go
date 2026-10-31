@@ -92,3 +92,33 @@ func (s *Server) handleAdminCookies(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(fmt.Sprintf(`{"status":"ok","message":"account %s updated"}`, req.ID)))
 }
+
+func (s *Server) handleAdminReload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.cfg.AdminKey != "" {
+		authHdr := r.Header.Get("Authorization")
+		if !strings.HasPrefix(authHdr, "Bearer ") {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		token := strings.TrimPrefix(authHdr, "Bearer ")
+		if subtle.ConstantTimeCompare([]byte(token), []byte(s.cfg.AdminKey)) != 1 {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
+
+	if s.ReloadHandler != nil {
+		if err := s.ReloadHandler(); err != nil {
+			http.Error(w, fmt.Sprintf("Reload failed: %v", err), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"status":"ok","message":"configuration reloaded"}`))
+}

@@ -59,39 +59,12 @@ func main() {
 	accountPool := pool.NewAccountPool(sessions)
 	accountPool.StartBackgroundRotator(ctx, 1440)
 
-	srv := server.NewServer(cfg, accountPool)
+	srv := server.NewServer(cfg, accountPool, func() error {
+		reloadConfiguration(*configPath, accountPool)
+		return nil
+	})
 
-	// SIGHUP Reload listener
-	sighupChan := make(chan os.Signal, 1)
-	signal.Notify(sighupChan, syscall.SIGHUP)
-	go func() {
-		for range sighupChan {
-			log.Printf("[Main] SIGHUP received: reloading configuration from %s", *configPath)
-			newCfg, err := config.LoadConfig(*configPath)
-			if err != nil {
-				log.Printf("[Main] Failed to reload config: %v", err)
-				continue
-			}
-			// Update or add sessions
-			for _, acc := range newCfg.Accounts {
-				found := false
-				for _, s := range accountPool.GetSessions() {
-					if s.ID == acc.ID {
-						s.UpdateCookies(acc.Cookies)
-						go s.Init(context.Background())
-						found = true
-						break
-					}
-				}
-				if !found {
-					newS := gemini.NewAccountSession(acc)
-					go newS.Init(context.Background())
-					accountPool.AddSession(newS)
-				}
-			}
-			log.Printf("[Main] Configuration reloaded successfully")
-		}
-	}()
+	setupReloadSignal(*configPath, accountPool)
 
 	// Graceful shutdown listener
 	shutdownChan := make(chan os.Signal, 1)
@@ -111,4 +84,30 @@ func main() {
 	defer shutdownCancel()
 	_ = srv.Shutdown(shutdownCtx)
 	log.Printf("[Main] Server exited cleanly")
+}
+
+func reloadConfiguration(configPath string, accountPool *pool.AccountPool) {
+	log.Printf("[Main] Reloading configuration from %s", configPath)
+	newCfg, err := config.LoadConfig(configPath)
+	if err != nil {
+		log.Printf("[Main] Failed to reload config: %v", err)
+		return
+	}
+	for _, acc := range newCfg.Accounts {
+		found := false
+		for _, s := range accountPool.GetSessions() {
+			if s.ID == acc.ID {
+				s.UpdateCookies(acc.Cookies)
+				go s.Init(context.Background())
+				found = true
+				break
+			}
+		}
+		if !found {
+			newS := gemini.NewAccountSession(acc)
+			go newS.Init(context.Background())
+			accountPool.AddSession(newS)
+		}
+	}
+	log.Printf("[Main] Configuration reloaded successfully")
 }
