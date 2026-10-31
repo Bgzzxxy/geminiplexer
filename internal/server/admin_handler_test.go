@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"gemini-to-api/internal/config"
-	"gemini-to-api/internal/server"
+	"gemini-relay/internal/config"
+	"gemini-relay/internal/server"
 )
 
 func TestAdminCookiesUnauthorized(t *testing.T) {

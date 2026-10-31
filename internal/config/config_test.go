@@ -3,7 +3,7 @@ package config_test
 import (
 	"os"
 	"testing"
-	"gemini-to-api/internal/config"
+	"gemini-relay/internal/config"
 )
 
 func TestLoadConfig(t *testing.T) {

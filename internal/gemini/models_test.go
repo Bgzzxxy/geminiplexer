@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"gemini-to-api/internal/config"
-	"gemini-to-api/internal/gemini"
+	"gemini-relay/internal/config"
+	"gemini-relay/internal/gemini"
 )
 
 func TestFetchModelsRPC(t *testing.T) {

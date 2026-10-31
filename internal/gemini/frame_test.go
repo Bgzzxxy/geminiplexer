@@ -2,7 +2,7 @@ package gemini_test
 
 import (
 	"testing"
-	"gemini-to-api/internal/gemini"
+	"gemini-relay/internal/gemini"
 )
 
 func TestParseStreamFrameDirect(t *testing.T) {

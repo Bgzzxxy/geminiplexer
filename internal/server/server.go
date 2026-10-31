@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"gemini-to-api/internal/config"
-	"gemini-to-api/internal/pool"
+	"gemini-relay/internal/config"
+	"gemini-relay/internal/pool"
 )
 
 type Server struct {

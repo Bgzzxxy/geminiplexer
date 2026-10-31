@@ -12,9 +12,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"gemini-to-api/internal/gemini"
-	"gemini-to-api/internal/pool"
-	"gemini-to-api/internal/toolbridge"
+	"gemini-relay/internal/gemini"
+	"gemini-relay/internal/pool"
+	"gemini-relay/internal/toolbridge"
 )
 
 type ChatMessage struct {

@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"gemini-to-api/internal/config"
-	"gemini-to-api/internal/gemini"
+	"gemini-relay/internal/config"
+	"gemini-relay/internal/gemini"
 )
 
 func TestStreamGenerateParsing(t *testing.T) {

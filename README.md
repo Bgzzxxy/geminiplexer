@@ -1,11 +1,11 @@
 <div align="center">
 
-# ⚡ Gemini Web To API
+# ⚡ Gemini Relay
 ### High-Performance Bare-Metal Reverse-Engineered OpenAI Gateway for Google Gemini Web
 
 [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=for-the-badge&logo=go)](https://golang.org)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20Bare--Metal-E95420?style=for-the-badge&logo=linux)](https://kernel.org)
-[![Docker Free](https://img.shields.io/badge/Docker-Zero%20Dependency-2496ED?style=for-the-badge)](https://github.com/Bgzzxxy/gemini-web-to-api)
+[![Docker Free](https://img.shields.io/badge/Docker-Zero%20Dependency-2496ED?style=for-the-badge)](https://github.com/Bgzzxxy/gemini-relay)
 [![Protocol](https://img.shields.io/badge/API-OpenAI%20Compatible-412991?style=for-the-badge&logo=openai)](https://platform.openai.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
@@ -40,7 +40,7 @@ Google Gemini Web offers state-of-the-art flagship reasoning models like **Gemin
 
 Existing third-party solutions often depend on heavy Docker containers, Node.js runtimes with high memory footprints, lack multi-account quota pooling, or silently fail when Google throttles a model tier.
 
-**Gemini Web To API** solves this with a native, static 6.2 MB Linux binary:
+**Gemini Relay** solves this with a native, static 6.2 MB Linux binary:
 - **Zero Docker**: Runs natively bare-metal (< 20 MB RAM footprint).
 - **Multi-Account Pooling**: Pools multiple Google accounts with Least-Recently-Used (LRU) scheduling and anti-burst rate limiting.
 - **Quota Downgrade Protection**: Instantly detects when Google attempts to silently downgrade a Pro/Argon request to Flash, quarantines that account, and fails over to an account with fresh quota.
@@ -120,8 +120,8 @@ All models are dynamically discovered via batchexecute RPC `otAQ7b` and mapped d
 
 ### 2. Clone & Build
 ```bash
-git clone https://github.com/Bgzzxxy/gemini-web-to-api.git
-cd gemini-web-to-api
+git clone https://github.com/Bgzzxxy/gemini-relay.git
+cd gemini-relay
 
 # Build static binary
 ./scripts/build.sh

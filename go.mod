@@ -1,4 +1,4 @@
-module gemini-to-api
+module gemini-relay
 
 go 1.23.2
 

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"gemini-to-api/internal/gemini"
+	"gemini-relay/internal/gemini"
 )
 
 type ErrorKind int
