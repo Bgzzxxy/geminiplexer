@@ -26,11 +26,13 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now().Unix()
 	models := []ModelCard{
+		{ID: "gemini-4-argon", Object: "model", Created: now, OwnedBy: "google"},
+		{ID: "gemini-3.1-pro", Object: "model", Created: now, OwnedBy: "google"},
+		{ID: "gemini-3.8-flash", Object: "model", Created: now, OwnedBy: "google"},
+		{ID: "gemini-flash-lite", Object: "model", Created: now, OwnedBy: "google"},
 		{ID: "gemini-auto", Object: "model", Created: now, OwnedBy: "google"},
 		{ID: "gemini-2.5-pro", Object: "model", Created: now, OwnedBy: "google"},
 		{ID: "gemini-2.5-flash", Object: "model", Created: now, OwnedBy: "google"},
-		{ID: "gemini-3.1-pro", Object: "model", Created: now, OwnedBy: "google"},
-		{ID: "gemini-3.8-flash", Object: "model", Created: now, OwnedBy: "google"},
 	}
 
 	resp := ModelListResponse{

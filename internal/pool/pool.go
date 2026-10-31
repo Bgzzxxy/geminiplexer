@@ -3,6 +3,7 @@ package pool
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -83,18 +84,7 @@ func (p *AccountPool) Acquire(ctx context.Context, requestedModel string) (*gemi
 		}
 	}
 
-	model := gemini.GeminiModel{
-		ID:            "gemini-auto",
-		DisplayName:   "Gemini Auto",
-		ModelID:       "auto",
-		Capacity:      1,
-		CapacityField: 12,
-		ModelNumber:   1,
-	}
-	if requestedModel != "" && requestedModel != "gemini-auto" {
-		model.ID = requestedModel
-		model.DisplayName = requestedModel
-	}
+	model := resolveModel(requestedModel)
 
 	release := func(status ErrorKind) {
 		p.mu.Lock()
@@ -114,4 +104,54 @@ func (p *AccountPool) Acquire(ctx context.Context, requestedModel string) (*gemi
 	}
 
 	return bestSession, model, release, nil
+}
+
+func resolveModel(requestedModel string) gemini.GeminiModel {
+	switch strings.ToLower(requestedModel) {
+	case "gemini-4-argon", "gemini-argon", "argon", "4-argon":
+		return gemini.GeminiModel{
+			ID:            "gemini-4-argon",
+			DisplayName:   "Gemini 4 Argon",
+			ModelID:       "95a4c0abcba24364",
+			ModelNumber:   4,
+			Capacity:      2,
+			CapacityField: 12,
+		}
+	case "gemini-3.1-pro", "gemini-pro", "pro":
+		return gemini.GeminiModel{
+			ID:            "gemini-3.1-pro",
+			DisplayName:   "Gemini 3.1 Pro",
+			ModelID:       "e6fa609c3fa255c0",
+			ModelNumber:   4,
+			Capacity:      2,
+			CapacityField: 12,
+		}
+	case "gemini-3.8-flash", "gemini-flash", "flash":
+		return gemini.GeminiModel{
+			ID:            "gemini-3.8-flash",
+			DisplayName:   "Gemini 3.8 Flash",
+			ModelID:       "56fdd199312815e2",
+			ModelNumber:   20,
+			Capacity:      2,
+			CapacityField: 12,
+		}
+	case "gemini-flash-lite", "flash-lite", "gemini-3.5-flash-lite":
+		return gemini.GeminiModel{
+			ID:            "gemini-flash-lite",
+			DisplayName:   "Gemini Flash-Lite",
+			ModelID:       "8c46e95b1a07cecc",
+			ModelNumber:   1,
+			Capacity:      2,
+			CapacityField: 12,
+		}
+	default:
+		return gemini.GeminiModel{
+			ID:            "gemini-auto",
+			DisplayName:   "Gemini Auto",
+			ModelID:       "auto",
+			Capacity:      1,
+			CapacityField: 12,
+			ModelNumber:   1,
+		}
+	}
 }
