@@ -1,7 +1,7 @@
 # Design Specification: Gemini Web to API (Go Bare-Metal Multi-Account Gateway)
 
 - **Date:** 2026-10-31
-- **Status:** Draft / Pending Builder Check & Approval
+- **Status:** Approved Design Specification
 - **Author:** Hermes Assistant & Bagus
 - **Repository Path:** `/home/bagus/PROJECT/gemini-to-api`
 
@@ -20,15 +20,28 @@ The goal is to build a high-performance, lightweight, bare-metal Go service that
 - **OpenAI API Compatibility:**
   - `POST /v1/chat/completions` with streaming (Server-Sent Events) and non-streaming responses.
   - `GET /v1/models` dynamically reflecting discovered Gemini web models.
+- **Tool Bridge (Native Function / Tool Calling):**
+  - Support `tools`, `tool_choice`, and `tool_calls` for autonomous agent tool use (Hermes Agent).
+  - Inject tool definition schemas into the system prompt context.
+  - Parse and validate JSON tool call payloads from model output.
+  - Stream tool call arguments cleanly as OpenAI tool delta chunks.
+  - Include one-shot automated repair retry when model outputs invalid JSON for tool parameters.
 - **Multi-Account Pooling & Anti-Detection:**
   - Support multiple Google accounts configured in an isolated, thread-safe pool.
-  - Smart scheduling (Least Recently Used / Round Robin with inter-request jitter) to prevent traffic bursts on individual accounts.
+  - Smart scheduling: Least Recently Used (LRU) / Weighted Round Robin with inter-request jitter to prevent traffic bursts on individual accounts.
   - Automated session refresh via Google's `RotateCookies` endpoint (`__Secure-1PSIDTS` rotation) on conservative, jittered intervals (e.g. 12-24h).
   - Circuit breaker & automatic cooldown: quarantine accounts hitting HTTP 429 or "unusual traffic" blocks, seamlessly failing over to healthy accounts.
+- **Stateless Execution:**
+  - Enforce temporary incognito chat mode (`[45]=1`) on all requests.
+  - Flatten full OpenAI message history into prompt context for each call, preventing Google account chat history pollution and enabling instant request failover between pool accounts.
+- **Quota Downgrade Mitigation:**
+  - Buffer initial stream chunks to verify the active internal model ID returned by Google.
+  - If Google silently degrades from a Pro/Flagship model to a lower tier, quarantine that model on the exhausted account and retry the request on another account with fresh quota. If all accounts are exhausted, pass through with truthful model metadata.
 - **Reasoning Effort Control:** Support `reasoning_effort` (`low`, `medium`, `high`) mapped directly to Gemini's internal thinking protocol (index 80 in payload and header `x-goog-ext-525001261-jspb`), streaming thought status lines as `reasoning_content`.
 - **Multimodal Vision Input:** Parse image inputs (base64 data URIs and external URLs) from user messages, upload them via Google internal push endpoints, and attach them to the generation request.
 - **Output Sanitization:** Strip web UI citation artifacts (e.g. `[cite: N]`, `[cite_start]`, code fence tags like `?code_reference`, `?code_stdout`) so agents receive clean text.
 - **Heuristic Token Usage:** Generate plausible `usage` counts (input tokens, reasoning tokens, output tokens) for context tracking in agent loops.
+- **Live Administration:** Support `POST /admin/cookies` (bearer token protected) for live runtime session pushes without server restarts, in addition to `SIGHUP` config reloads.
 
 ### 2.2 Non-Goals
 - **No Experimental Generation Features:** Explicitly excluded: Canvas, Image Generation (Imagen), Video Generation (Veo), and Music Generation.
@@ -76,7 +89,7 @@ Reverse-engineered from Gemini Web protocols and reference implementation (`ntth
   - `[0]`: Message content array `[prompt, 0, nil, fileData, nil, nil, 0]`
   - `[1]`: Language `["en"]`
   - `[2]`: Metadata `[conversation_id, response_id, choice_id, ...]`
-  - `[45]`: `1` if temporary/incognito mode
+  - `[45]`: `1` (stateless/temporary incognito mode enforced)
   - `[59]`: Request UUID
   - `[79]`: Model Number
   - `[80]`: Thinking Level (1 = Low, etc.)
@@ -89,20 +102,22 @@ Reverse-engineered from Gemini Web protocols and reference implementation (`ntth
                   ┌────────────────────────────────────────┐
                   │          Hermes Agent / Client         │
                   └───────────────────┬────────────────────┘
-                                      │ HTTP /v1/chat/completions
+                                      │ HTTP /v1/chat/completions (tools, streaming)
                                       ▼
                   ┌────────────────────────────────────────┐
                   │       Gemini-to-API Go Service         │
                   │   - OpenAI Request Validator           │
-                  │   - Sanitizer & Token Estimator        │
+                  │   - Tool Bridge (JSON Schema Engine)   │
+                  │   - Output Sanitizer & Token Estimator │
                   └───────────────────┬────────────────────┘
                                       │
                                       ▼
                   ┌────────────────────────────────────────┐
                   │         Account Pool Manager           │
-                  │   - Account Health Status Store        │
+                  │   - Account Health & Quota State Store │
                   │   - Jittered Interval Rotator          │
-                  │   - Sticky Session / LRU Scheduler     │
+                  │   - Stateless LRU Scheduler            │
+                  │   - Downgrade Inspector & Failover     │
                   └───────┬──────────────┬──────────────┬──┘
                           │              │              │
                     Account #1     Account #2     Account #N
