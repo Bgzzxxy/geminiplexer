@@ -190,7 +190,7 @@ journalctl --user -u gemini-to-api.service -f
 
 ## 🌐 9router Integration
 
-The gateway integrates cleanly with [9router](https://github.com/ntthanh2603/9router).
+The gateway integrates cleanly with [9router](https://github.com/decolua/9router).
 
 - **Base URL**: `http://127.0.0.1:4981/v1`
 - **Prefix**: `gemini-to-api`
