@@ -65,7 +65,7 @@ func NewAccountSession(cfg config.AccountConfig) *AccountSession {
 		Secure1PSID:   psid,
 		Secure1PSIDTS: psidts,
 		Client: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: 5 * time.Minute,
 		},
 		IsHealthy: true,
 	}

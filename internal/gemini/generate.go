@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -111,34 +112,39 @@ func (s *AccountSession) StreamGenerate(ctx context.Context, prompt string, mode
 	req.Header.Set("Cookie", cookieHdr)
 
 	// Routing model headers
-	modelHdr := make([]any, 17)
-	modelHdr[0] = 1
-	modelHdr[4] = model.ModelID
-	modelHdr[7] = 0
-	modelHdr[8] = []int{4, 5, 6, 8}
-	modelHdr[11] = model.Capacity
-	modelHdr[14] = model.ModelNumber
-	modelHdr[15] = thinkingLevel
-	modelHdr[16] = generationID
+	if model.ModelID != "" && model.ModelID != "auto" {
+		modelHdr := make([]any, 17)
+		modelHdr[0] = 1
+		modelHdr[4] = model.ModelID
+		modelHdr[7] = 0
+		modelHdr[8] = []int{4, 5, 6, 8}
+		modelHdr[11] = model.Capacity
+		modelHdr[14] = model.ModelNumber
+		modelHdr[15] = thinkingLevel
+		modelHdr[16] = generationID
 
-	encHdr, _ := json.Marshal(modelHdr)
-	req.Header.Set(geminiModelHeaderKey, string(encHdr))
-	reqHeader, _ := json.Marshal([]any{requestID, 1})
-	req.Header.Set("x-goog-ext-525005358-jspb", string(reqHeader))
-	req.Header.Set("x-goog-ext-73010989-jspb", "[0]")
-	req.Header.Set("x-goog-ext-73010990-jspb", "[0,0,0]")
+		encHdr, _ := json.Marshal(modelHdr)
+		req.Header.Set(geminiModelHeaderKey, string(encHdr))
+		reqHeader, _ := json.Marshal([]any{requestID, 1})
+		req.Header.Set("x-goog-ext-525005358-jspb", string(reqHeader))
+		req.Header.Set("x-goog-ext-73010989-jspb", "[0]")
+		req.Header.Set("x-goog-ext-73010990-jspb", "[0,0,0]")
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Printf("[StreamGenerate] client.Do error: %v", err)
 		return nil, fmt.Errorf("execute stream generate request: %w", err)
 	}
+
+	log.Printf("[StreamGenerate] HTTP response status: %d", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
 		return nil, fmt.Errorf("stream generate returned HTTP %d", resp.StatusCode)
 	}
 
-	ch := make(chan GenerateChunk, 32)
+	ch := make(chan GenerateChunk, 64)
 	go func() {
 		defer resp.Body.Close()
 		defer close(ch)
@@ -156,20 +162,6 @@ func (s *AccountSession) StreamGenerate(ctx context.Context, prompt string, mode
 			}
 			line = strings.TrimSpace(line)
 			if line == "" {
-				// Empty line often separates SSE events; if buffer has content, try parsing before clearing
-				if frameBuf.Len() > 0 {
-					dataStr := frameBuf.String()
-					if chunks := parseStreamFrame(dataStr); len(chunks) > 0 {
-						for _, chunk := range chunks {
-							select {
-							case ch <- chunk:
-							case <-ctx.Done():
-								return
-							}
-						}
-					}
-					frameBuf.Reset()
-				}
 				continue
 			}
 
@@ -180,17 +172,27 @@ func (s *AccountSession) StreamGenerate(ctx context.Context, prompt string, mode
 			if strings.HasPrefix(dataStr, ")]}'") {
 				dataStr = strings.TrimSpace(strings.TrimPrefix(dataStr, ")]}'"))
 			}
+			if dataStr == "" {
+				continue
+			}
+			// Skip pure numeric length-prefix lines
+			if _, err := strconv.Atoi(dataStr); err == nil {
+				continue
+			}
 
-			// Append to assembly buffer
+			// Append line to assembly buffer
 			if frameBuf.Len() > 0 {
 				frameBuf.WriteString(" ")
 			}
 			frameBuf.WriteString(dataStr)
 
 			combined := frameBuf.String()
-			chunks := parseStreamFrame(combined)
-			if len(chunks) > 0 {
+			var envelope any
+			if err := json.Unmarshal([]byte(combined), &envelope); err == nil {
+				// Successfully parsed valid complete JSON envelope!
 				frameBuf.Reset()
+				chunks := extractChunksFromEnvelope(envelope)
+				log.Printf("[StreamGenerate] parsed envelope successfully, found %d chunks", len(chunks))
 				for _, chunk := range chunks {
 					if chunk.Text != "" || chunk.Reasoning != "" || chunk.ModelID != "" {
 						select {
@@ -209,7 +211,11 @@ func (s *AccountSession) StreamGenerate(ctx context.Context, prompt string, mode
 }
 
 func ParseStreamFrameForTest(dataStr string) []GenerateChunk {
-	return parseStreamFrame(dataStr)
+	var envelope any
+	if err := json.Unmarshal([]byte(dataStr), &envelope); err != nil {
+		return nil
+	}
+	return extractChunksFromEnvelope(envelope)
 }
 
 func findWrbFrPayloads(v any) []string {
@@ -230,12 +236,7 @@ func findWrbFrPayloads(v any) []string {
 	return out
 }
 
-func parseStreamFrame(dataStr string) []GenerateChunk {
-	var envelope any
-	if err := json.Unmarshal([]byte(dataStr), &envelope); err != nil {
-		return nil
-	}
-
+func extractChunksFromEnvelope(envelope any) []GenerateChunk {
 	payloadStrings := findWrbFrPayloads(envelope)
 	var results []GenerateChunk
 

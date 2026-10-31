@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -130,6 +131,10 @@ func flattenMessages(messages []ChatMessage, tools []toolbridge.OpenAITool) stri
 
 	finalSystem := toolbridge.InjectTools(systemPrompt, tools)
 
+	if finalSystem == "" && len(messages) == 1 && messages[0].Role == "user" {
+		return formatMessageContent(messages[0].Content)
+	}
+
 	var sb strings.Builder
 	if finalSystem != "" {
 		sb.WriteString("System Instruction:\n")
@@ -180,6 +185,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	prompt := flattenMessages(req.Messages, req.Tools)
 	thinkingLevel := parseReasoningEffort(req.ReasoningEffort)
+	log.Printf("[Chat] handleChatCompletions: model=%s, prompt_len=%d, stream=%v", modelName, len(prompt), req.Stream)
 
 	maxAttempts := len(s.pool.GetSessions())
 	if maxAttempts <= 0 {
@@ -219,6 +225,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		downgraded := false
 
 		for chunk := range streamChan {
+			log.Printf("[Chat] received chunk: text=%q, isDone=%v, modelID=%q", chunk.Text, chunk.IsDone, chunk.ModelID)
 			bufferedChunks = append(bufferedChunks, chunk)
 			if chunk.ModelID != "" {
 				if strings.Contains(strings.ToLower(modelName), "pro") && strings.Contains(strings.ToLower(chunk.ModelID), "flash") {
