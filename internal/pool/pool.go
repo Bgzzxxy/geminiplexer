@@ -45,12 +45,17 @@ func (p *AccountPool) GetSessions() []*gemini.AccountSession {
 }
 
 func (p *AccountPool) Acquire(ctx context.Context, requestedModel string) (*gemini.AccountSession, gemini.GeminiModel, func(status ErrorKind), error) {
+	return p.AcquireForGroup(ctx, requestedModel, "")
+}
+
+// AcquireForGroup acquires a session filtered by group. Empty group = all accounts.
+func (p *AccountPool) AcquireForGroup(ctx context.Context, requestedModel string, group string) (*gemini.AccountSession, gemini.GeminiModel, func(status ErrorKind), error) {
 	p.mu.Lock()
 
 	now := time.Now()
 	var bestSession *gemini.AccountSession
 
-	// Pick healthy session not in cooldown with oldest LastUsed (LRU)
+	// Pick healthy session not in cooldown, not busy, with oldest LastUsed (LRU)
 	for _, s := range p.sessions {
 		if !s.IsHealthy {
 			continue
@@ -58,8 +63,32 @@ func (p *AccountPool) Acquire(ctx context.Context, requestedModel string) (*gemi
 		if s.CooldownUntil.After(now) {
 			continue
 		}
+		if s.IsBusy() {
+			continue
+		}
+		if group != "" && s.Group != group {
+			continue
+		}
 		if bestSession == nil || s.LastUsed.Before(bestSession.LastUsed) {
 			bestSession = s
+		}
+	}
+
+	// Fallback: if all non-cooldown accounts are busy, pick any healthy non-cooldown (will block)
+	if bestSession == nil {
+		for _, s := range p.sessions {
+			if !s.IsHealthy {
+				continue
+			}
+			if s.CooldownUntil.After(now) {
+				continue
+			}
+			if group != "" && s.Group != group {
+				continue
+			}
+			if bestSession == nil || s.LastUsed.Before(bestSession.LastUsed) {
+				bestSession = s
+			}
 		}
 	}
 
@@ -84,9 +113,17 @@ func (p *AccountPool) Acquire(ctx context.Context, requestedModel string) (*gemi
 		}
 	}
 
+	// Acquire concurrency semaphore (blocks if account is busy)
+	if err := bestSession.AcquireWithContext(ctx); err != nil {
+		return nil, gemini.GeminiModel{}, nil, fmt.Errorf("acquire concurrency semaphore: %w", err)
+	}
+
 	model := resolveModel(requestedModel)
 
 	release := func(status ErrorKind) {
+		// Always release the concurrency semaphore
+		bestSession.Release()
+
 		p.mu.Lock()
 		defer p.mu.Unlock()
 

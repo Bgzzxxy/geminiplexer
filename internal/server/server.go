@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"geminiplexer/internal/config"
 	"geminiplexer/internal/pool"
@@ -14,15 +15,23 @@ type Server struct {
 	pool          *pool.AccountPool
 	Handler       http.Handler
 	ReloadHandler func() error
+	keyGroupMap   map[string]string // API key → group mapping
 }
 
 func NewServer(cfg *config.Config, p *pool.AccountPool, reloadFn ...func() error) *http.Server {
 	s := &Server{
-		cfg:  cfg,
-		pool: p,
+		cfg:         cfg,
+		pool:        p,
+		keyGroupMap: make(map[string]string),
 	}
 	if len(reloadFn) > 0 {
 		s.ReloadHandler = reloadFn[0]
+	}
+	// Build key → group lookup
+	for _, ak := range cfg.APIKeys {
+		if ak.Key != "" {
+			s.keyGroupMap[ak.Key] = ak.Group
+		}
 	}
 
 	mux := http.NewServeMux()
@@ -93,4 +102,23 @@ func NewServer(cfg *config.Config, p *pool.AccountPool, reloadFn ...func() error
 		Addr:    addr,
 		Handler: corsHandler,
 	}
+}
+
+// resolveGroupFromRequest extracts API key from request and returns the mapped group.
+// Returns empty string if no key or no group mapping (= access all accounts).
+func (s *Server) resolveGroupFromRequest(r *http.Request) string {
+	key := ""
+	if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+		key = strings.TrimPrefix(auth, "Bearer ")
+	}
+	if key == "" {
+		key = r.Header.Get("x-api-key")
+	}
+	if key == "" {
+		key = r.Header.Get("x-goog-api-key")
+	}
+	if key == "" {
+		return ""
+	}
+	return s.keyGroupMap[key]
 }

@@ -24,10 +24,12 @@ const (
 )
 
 type GenerateChunk struct {
-	Text      string
-	Reasoning string
-	ModelID   string
-	IsDone    bool
+	Text           string
+	Reasoning      string
+	ModelID        string
+	ResponseModel  string // actual model used (from pj[39])
+	ContextToken   string // conversation continuation token (from pj[2])
+	IsDone         bool
 }
 
 func (s *AccountSession) SetGenerateEndpointOverride(u string) {
@@ -201,7 +203,7 @@ func (s *AccountSession) StreamGenerate(ctx context.Context, prompt string, mode
 				chunks := extractChunksFromEnvelope(envelope)
 				log.Printf("[StreamGenerate] parsed envelope successfully, found %d chunks", len(chunks))
 				for _, chunk := range chunks {
-					if chunk.Text != "" || chunk.Reasoning != "" || chunk.ModelID != "" {
+					if chunk.Text != "" || chunk.Reasoning != "" || chunk.ModelID != "" || chunk.ResponseModel != "" || chunk.ContextToken != "" {
 						select {
 						case ch <- chunk:
 						case <-ctx.Done():
@@ -287,14 +289,31 @@ func extractChunksFromEnvelope(envelope any) []GenerateChunk {
 			}
 		}
 
-		// Model ID marker
+		// Model ID marker at payload[80]
 		if len(payload) > 80 {
 			if mID, ok := payload[80].(string); ok && mID != "" {
 				chunk.ModelID = mID
 			}
 		}
 
-		if chunk.Text != "" || chunk.Reasoning != "" || chunk.ModelID != "" {
+		// Actual response model at payload[39] — used for downgrade detection
+		if len(payload) > 39 {
+			if respModel, ok := payload[39].(string); ok && respModel != "" {
+				chunk.ResponseModel = respModel
+			}
+		}
+
+		// Context token for session continuation at payload[2][inner arrays]
+		if len(payload) > 2 {
+			if ctxArr, ok := payload[2].([]any); ok && len(ctxArr) > 0 {
+				// Context token is typically at payload[2][0] or nested
+				if ctxToken, ok := ctxArr[0].(string); ok && ctxToken != "" {
+					chunk.ContextToken = ctxToken
+				}
+			}
+		}
+
+		if chunk.Text != "" || chunk.Reasoning != "" || chunk.ModelID != "" || chunk.ResponseModel != "" || chunk.ContextToken != "" {
 			results = append(results, chunk)
 		}
 	}

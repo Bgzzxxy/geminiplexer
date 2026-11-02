@@ -46,6 +46,9 @@ type AccountSession struct {
 	QuotaResetAt           time.Time
 	IsHealthy              bool
 	ProxyURL               string
+	Group                  string
+	// Concurrency control: limits parallel requests per account
+	concSem                chan struct{}
 }
 
 func parseCookieField(rawCookies, key string) string {
@@ -71,7 +74,7 @@ func NewAccountSession(cfg config.AccountConfig) *AccountSession {
 		client = &http.Client{Timeout: 5 * time.Minute}
 	}
 
-	return &AccountSession{
+	sess := &AccountSession{
 		ID:            cfg.ID,
 		AuthUser:      cfg.AuthUser,
 		RawCookies:    cfg.Cookies,
@@ -81,7 +84,12 @@ func NewAccountSession(cfg config.AccountConfig) *AccountSession {
 		Client:        client,
 		IsHealthy:     true,
 		ProxyURL:      cfg.Proxy,
+		Group:         cfg.Group,
+		concSem:       make(chan struct{}, 1), // 1 concurrent request per account
 	}
+	// Pre-fill the semaphore (available slot)
+	sess.concSem <- struct{}{}
+	return sess
 }
 
 func (s *AccountSession) SetEndpointOverride(u string) {
@@ -253,4 +261,39 @@ func (s *AccountSession) SelfHeal(ctx context.Context) bool {
 	}
 	log.Printf("[Session] %s: self-heal succeeded", s.ID)
 	return true
+}
+
+// TryAcquire attempts to acquire the concurrency semaphore without blocking.
+// Returns true if acquired, false if the account is busy.
+func (s *AccountSession) TryAcquire() bool {
+	select {
+	case <-s.concSem:
+		return true
+	default:
+		return false
+	}
+}
+
+// AcquireWithContext blocks until the semaphore is available or context is cancelled.
+func (s *AccountSession) AcquireWithContext(ctx context.Context) error {
+	select {
+	case <-s.concSem:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// Release returns the concurrency semaphore slot.
+func (s *AccountSession) Release() {
+	select {
+	case s.concSem <- struct{}{}:
+	default:
+		// Already released, shouldn't happen
+	}
+}
+
+// IsBusy returns true if the account is currently handling a request.
+func (s *AccountSession) IsBusy() bool {
+	return len(s.concSem) == 0
 }
