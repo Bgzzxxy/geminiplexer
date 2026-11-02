@@ -16,6 +16,7 @@ type Server struct {
 	Handler       http.Handler
 	ReloadHandler func() error
 	keyGroupMap   map[string]string // API key → group mapping
+	convs         *convCache        // conversation-keyed continuation cache
 }
 
 func NewServer(cfg *config.Config, p *pool.AccountPool, reloadFn ...func() error) *http.Server {
@@ -23,6 +24,7 @@ func NewServer(cfg *config.Config, p *pool.AccountPool, reloadFn ...func() error
 		cfg:         cfg,
 		pool:        p,
 		keyGroupMap: make(map[string]string),
+		convs:       newConvCache(),
 	}
 	if len(reloadFn) > 0 {
 		s.ReloadHandler = reloadFn[0]

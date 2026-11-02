@@ -188,6 +188,17 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	group := s.resolveGroupFromRequest(r)
 	log.Printf("[Chat] handleChatCompletions: model=%s, prompt_len=%d, stream=%v, group=%q", modelName, len(prompt), req.Stream, group)
 
+	// Conversation-keyed continuation: hash (model + history + tools) to look up
+	// the account + metadata that own this conversation.
+	var convMeta gemini.ContinuationMeta
+	affinityAccount := ""
+	if s.convs != nil {
+		if e, ok := s.convs.lookupPrefix(modelName, req.Messages, req.Tools); ok {
+			convMeta = e.Meta
+			affinityAccount = e.AccountID
+		}
+	}
+
 	maxAttempts := len(s.pool.GetSessions())
 	if maxAttempts <= 0 {
 		maxAttempts = 1
@@ -204,13 +215,21 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	)
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		sess, gModel, release, err = s.pool.AcquireForGroup(r.Context(), modelName, group)
+		// Reset per-attempt state. Without this, a downgrade→continue leaves
+		// stale sess/streamChan from the prior iteration while the next Acquire
+		// may return a nil release (all accounts cooling), so the `streamChan
+		// == nil` guard is bypassed and `defer release(...)` panics on nil.
+		sess = nil
+		release = nil
+		streamChan = nil
+
+		sess, gModel, release, err = s.pool.AcquireForGroupWithAffinity(r.Context(), modelName, group, affinityAccount)
 		if err != nil {
 			lastErr = err
 			break
 		}
 
-		streamChan, err = sess.StreamGenerate(r.Context(), prompt, gModel, thinkingLevel)
+		streamChan, err = sess.StreamGenerateWithMeta(r.Context(), prompt, gModel, thinkingLevel, convMeta)
 		if err != nil {
 			lastErr = err
 			if strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "403") {
@@ -526,15 +545,39 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	// Non-streaming response aggregation: take the latest cumulative snapshot
 	var finalContent string
+	var finalMeta gemini.ContinuationMeta
+	mergeMeta := func(c gemini.GenerateChunk) {
+		if c.CID != "" {
+			finalMeta.CID = c.CID
+		}
+		if c.RID != "" {
+			finalMeta.RID = c.RID
+		}
+		if c.RCID != "" {
+			finalMeta.RCID = c.RCID
+		}
+		if c.ContextToken != "" {
+			finalMeta.ContextToken = c.ContextToken
+		}
+	}
 	for _, c := range bufferedChunks {
 		if c.Text != "" {
 			finalContent = c.Text
 		}
+		mergeMeta(c)
 	}
 	for chunk := range streamChan {
 		if chunk.Text != "" {
 			finalContent = chunk.Text
 		}
+		mergeMeta(chunk)
+	}
+
+	// Persist the continuation metadata for the next turn in this conversation.
+	// Store under (history + assistant reply) so the following turn matches via
+	// prefix lookup.
+	if s.convs != nil && sess != nil && !finalMeta.Empty() {
+		s.convs.put(nextConvKey(modelName, req.Messages, req.Tools, finalContent), convCacheEntry{AccountID: sess.ID, Meta: finalMeta})
 	}
 
 	var toolCalls []toolbridge.ToolCall

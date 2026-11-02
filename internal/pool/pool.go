@@ -50,40 +50,65 @@ func (p *AccountPool) Acquire(ctx context.Context, requestedModel string) (*gemi
 
 // AcquireForGroup acquires a session filtered by group. Empty group = all accounts.
 func (p *AccountPool) AcquireForGroup(ctx context.Context, requestedModel string, group string) (*gemini.AccountSession, gemini.GeminiModel, func(status ErrorKind), error) {
+	return p.AcquireForGroupWithAffinity(ctx, requestedModel, group, "")
+}
+
+// AcquireForGroupWithAffinity prefers the named account (a conversation-owner
+// hint) when it is healthy and eligible, so multi-turn conversations stay on
+// the Gemini session that holds their continuation metadata. Falls back to
+// normal LRU selection otherwise.
+func (p *AccountPool) AcquireForGroupWithAffinity(ctx context.Context, requestedModel string, group string, preferAccountID string) (*gemini.AccountSession, gemini.GeminiModel, func(status ErrorKind), error) {
 	p.mu.Lock()
 
 	now := time.Now()
 	var bestSession *gemini.AccountSession
 
-	// Pick healthy session not in cooldown, not busy, with oldest LastUsed (LRU)
-	for _, s := range p.sessions {
-		if !s.IsHealthy {
-			continue
-		}
-		if s.CooldownUntil.After(now) {
-			continue
-		}
-		if s.IsBusy() {
-			continue
+	eligible := func(s *gemini.AccountSession) bool {
+		if !s.IsHealthy || s.CooldownUntil.After(now) {
+			return false
 		}
 		if group != "" && s.Group != group {
-			continue
+			return false
 		}
-		if bestSession == nil || s.LastUsed.Before(bestSession.LastUsed) {
-			bestSession = s
+		return true
+	}
+
+	// Pass 1: prefer an eligible, non-busy conversation-owner account.
+	if preferAccountID != "" {
+		for _, s := range p.sessions {
+			if s.ID == preferAccountID && eligible(s) && !s.IsBusy() {
+				bestSession = s
+				break
+			}
 		}
 	}
 
-	// Fallback: if all non-cooldown accounts are busy, pick any healthy non-cooldown (will block)
+	// Pass 2: LRU over eligible, non-busy accounts.
 	if bestSession == nil {
 		for _, s := range p.sessions {
-			if !s.IsHealthy {
+			if !eligible(s) || s.IsBusy() {
 				continue
 			}
-			if s.CooldownUntil.After(now) {
-				continue
+			if bestSession == nil || s.LastUsed.Before(bestSession.LastUsed) {
+				bestSession = s
 			}
-			if group != "" && s.Group != group {
+		}
+	}
+
+	// Pass 3: affinity even if busy (will block on the semaphore).
+	if bestSession == nil && preferAccountID != "" {
+		for _, s := range p.sessions {
+			if s.ID == preferAccountID && eligible(s) {
+				bestSession = s
+				break
+			}
+		}
+	}
+
+	// Pass 4: any eligible account (will block).
+	if bestSession == nil {
+		for _, s := range p.sessions {
+			if !eligible(s) {
 				continue
 			}
 			if bestSession == nil || s.LastUsed.Before(bestSession.LastUsed) {

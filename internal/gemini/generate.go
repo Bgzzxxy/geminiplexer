@@ -104,6 +104,10 @@ func (s *AccountSession) SetGenerateEndpointOverride(u string) {
 }
 
 func (s *AccountSession) StreamGenerate(ctx context.Context, prompt string, model GeminiModel, thinkingLevel int) (<-chan GenerateChunk, error) {
+	// Fresh conversation by default. Continuation metadata is supplied
+	// explicitly by the caller (server conversation cache) via
+	// StreamGenerateWithMeta so multi-turn continuity is keyed by conversation,
+	// not by account (pool rotation would otherwise cross-contaminate).
 	return s.StreamGenerateWithMeta(ctx, prompt, model, thinkingLevel, ContinuationMeta{})
 }
 
