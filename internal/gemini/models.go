@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"geminiplexer/internal/transport"
 )
 
 const (
@@ -81,7 +83,7 @@ func (s *AccountSession) FetchModels(ctx context.Context) ([]GeminiModel, error)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded;charset=utf-8")
 	req.Header.Set("Origin", "https://gemini.google.com")
 	req.Header.Set("Referer", "https://gemini.google.com/")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	transport.SetChromeHeaders(req)
 	req.Header.Set("X-Same-Domain", "1")
 	req.Header.Set("Cookie", cookieHdr)
 

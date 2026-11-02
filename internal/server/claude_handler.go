@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -187,6 +188,7 @@ func (s *Server) handleClaudeMessages(w http.ResponseWriter, r *http.Request) {
 		maxAttempts = 1
 	}
 
+	start := time.Now()
 	var (
 		sess           *gemini.AccountSession
 		gModel         gemini.GeminiModel
@@ -392,6 +394,17 @@ func (s *Server) handleClaudeMessages(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "event: message_delta\ndata: %s\n\n", string(b))
 				flusher.Flush()
 
+				GlobalTelemetry.RecordRequest(RequestLogItem{
+					ID:        msgID,
+					Timestamp: time.Now().Format("15:04:05"),
+					Protocol:  "Anthropic",
+					Model:     modelName,
+					Account:   sess.ID,
+					LatencyMs: time.Since(start).Milliseconds(),
+					Status:    http.StatusOK,
+					ToolCalls: true,
+				}, int64(len(finalContent)/4))
+
 				// message_stop
 				fmt.Fprintf(w, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
 				flusher.Flush()
@@ -461,6 +474,17 @@ func (s *Server) handleClaudeMessages(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "event: message_delta\ndata: %s\n\n", string(b))
 		flusher.Flush()
 
+		GlobalTelemetry.RecordRequest(RequestLogItem{
+			ID:        msgID,
+			Timestamp: time.Now().Format("15:04:05"),
+			Protocol:  "Anthropic",
+			Model:     modelName,
+			Account:   sess.ID,
+			LatencyMs: time.Since(start).Milliseconds(),
+			Status:    http.StatusOK,
+			ToolCalls: false,
+		}, int64(totalOutputTokens))
+
 		// 6. message_stop
 		fmt.Fprintf(w, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
 		flusher.Flush()
@@ -525,6 +549,17 @@ func (s *Server) handleClaudeMessages(w http.ResponseWriter, r *http.Request) {
 			OutputTokens: len(finalContent) / 4,
 		},
 	}
+
+	GlobalTelemetry.RecordRequest(RequestLogItem{
+		ID:        msgID,
+		Timestamp: time.Now().Format("15:04:05"),
+		Protocol:  "Anthropic",
+		Model:     modelName,
+		Account:   sess.ID,
+		LatencyMs: time.Since(start).Milliseconds(),
+		Status:    http.StatusOK,
+		ToolCalls: len(resp.Content) > 0 && resp.Content[0].Type == "tool_use",
+	}, int64(len(finalContent)/4))
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)

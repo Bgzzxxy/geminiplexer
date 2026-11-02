@@ -174,7 +174,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.pool == nil {
-		http.Error(w, "Account pool not initialized", http.StatusServiceUnavailable)
+		writeAPIError(w, http.StatusServiceUnavailable, ErrCodeAuthUnavailable, "No accounts loaded in pool")
 		return
 	}
 
@@ -192,6 +192,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		maxAttempts = 1
 	}
 
+	start := time.Now()
 	var (
 		sess           *gemini.AccountSession
 		gModel         gemini.GeminiModel
@@ -213,7 +214,8 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			lastErr = err
 			if strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "403") {
 				release(pool.StatusAuthError)
-				go sess.Init(context.Background())
+				// Trigger self-heal in background
+				go sess.SelfHeal(context.Background())
 			} else {
 				release(pool.StatusRateLimited)
 			}
@@ -248,7 +250,18 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if streamChan == nil {
-		http.Error(w, fmt.Sprintf("Pool error or upstream failure: %v", lastErr), http.StatusBadGateway)
+		// Classify the error
+		errMsg := "Pool exhausted or upstream failure"
+		if lastErr != nil {
+			errMsg = lastErr.Error()
+		}
+		if strings.Contains(errMsg, "401") || strings.Contains(errMsg, "403") {
+			writeAPIError(w, http.StatusUnauthorized, ErrCodeUpstreamAuthError, "Google session expired: "+errMsg)
+		} else if strings.Contains(errMsg, "no healthy accounts") {
+			writeAPIError(w, http.StatusServiceUnavailable, ErrCodeAuthUnavailable, errMsg)
+		} else {
+			writeAPIError(w, http.StatusBadGateway, ErrCodeServerError, errMsg)
+		}
 		return
 	}
 	defer release(pool.StatusSuccess)
@@ -420,6 +433,17 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 				flusher.Flush()
 			}
 
+			GlobalTelemetry.RecordRequest(RequestLogItem{
+				ID:        reqID,
+				Timestamp: time.Now().Format("15:04:05"),
+				Protocol:  "OpenAI",
+				Model:     modelName,
+				Account:   sess.ID,
+				LatencyMs: time.Since(start).Milliseconds(),
+				Status:    http.StatusOK,
+				ToolCalls: len(toolCalls) > 0,
+			}, int64(len(finalContent)/4))
+
 			fmt.Fprintf(w, "data: [DONE]\n\n")
 			flusher.Flush()
 			return
@@ -471,6 +495,17 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		for chunk := range streamChan {
 			processChunk(chunk)
 		}
+
+		GlobalTelemetry.RecordRequest(RequestLogItem{
+			ID:        reqID,
+			Timestamp: time.Now().Format("15:04:05"),
+			Protocol:  "OpenAI",
+			Model:     modelName,
+			Account:   sess.ID,
+			LatencyMs: time.Since(start).Milliseconds(),
+			Status:    http.StatusOK,
+			ToolCalls: false,
+		}, int64(len(prevText)/4))
 
 		fmt.Fprintf(w, "data: [DONE]\n\n")
 		flusher.Flush()
@@ -542,6 +577,17 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			TotalTokens:      (len(prompt) + len(finalContent)) / 4,
 		},
 	}
+
+	GlobalTelemetry.RecordRequest(RequestLogItem{
+		ID:        reqID,
+		Timestamp: time.Now().Format("15:04:05"),
+		Protocol:  "OpenAI",
+		Model:     modelName,
+		Account:   sess.ID,
+		LatencyMs: time.Since(start).Milliseconds(),
+		Status:    http.StatusOK,
+		ToolCalls: len(toolCalls) > 0,
+	}, int64(len(finalContent)/4))
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
