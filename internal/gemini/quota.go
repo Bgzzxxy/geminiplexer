@@ -84,6 +84,9 @@ func (s *AccountSession) CheckQuota(ctx context.Context) ([]QuotaBucket, error) 
 	transport.SetChromeHeaders(req)
 	req.Header.Set("X-Same-Domain", "1")
 	req.Header.Set("Cookie", cookieHdr)
+	if auth := s.SAPISIDHash("https://gemini.google.com"); auth != "" {
+		req.Header.Set("Authorization", auth)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -108,7 +111,8 @@ func (s *AccountSession) CheckQuota(ctx context.Context) ([]QuotaBucket, error) 
 	}
 
 	var parsedEnvelope []any
-	if err := json.Unmarshal([]byte(bodyStr), &parsedEnvelope); err != nil {
+	parsedEnvelope, err = parseBatchEnvelope(bodyStr)
+	if err != nil {
 		return nil, fmt.Errorf("parse quota envelope: %w", err)
 	}
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -86,6 +87,9 @@ func (s *AccountSession) FetchModels(ctx context.Context) ([]GeminiModel, error)
 	transport.SetChromeHeaders(req)
 	req.Header.Set("X-Same-Domain", "1")
 	req.Header.Set("Cookie", cookieHdr)
+	if auth := s.SAPISIDHash("https://gemini.google.com"); auth != "" {
+		req.Header.Set("Authorization", auth)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -109,8 +113,8 @@ func (s *AccountSession) FetchModels(ctx context.Context) ([]GeminiModel, error)
 		bodyStr = strings.TrimSpace(bodyStr)
 	}
 
-	var parsedEnvelope []any
-	if err := json.Unmarshal([]byte(bodyStr), &parsedEnvelope); err != nil {
+	parsedEnvelope, err := parseBatchEnvelope(bodyStr)
+	if err != nil {
 		// Fallback to default model if unmarshal of outer envelope fails
 		return defaultModels(), nil
 	}
@@ -123,6 +127,8 @@ func (s *AccountSession) FetchModels(ctx context.Context) ([]GeminiModel, error)
 	s.mu.Lock()
 	s.CachedModels = models
 	s.mu.Unlock()
+
+	log.Printf("[Models] %s: discovered %d live models (ids=%s)", s.ID, len(models), joinModelIDs(models))
 
 	return models, nil
 }
@@ -170,39 +176,125 @@ func parseModelsFromEnvelope(envelope []any) []GeminiModel {
 
 func extractModelsFromPayload(payload []any) []GeminiModel {
 	var results []GeminiModel
-	// Check typical nested array structure: [null, null, null, [[null, null, [[...]]]]]
-	if len(payload) > 3 {
-		if outerArr, ok := payload[3].([]any); ok && len(outerArr) > 0 {
-			if subArr, ok := outerArr[0].([]any); ok && len(subArr) > 2 {
-				if modelList, ok := subArr[2].([]any); ok {
-					for _, m := range modelList {
-						if fields, ok := m.([]any); ok && len(fields) >= 13 {
-							modelName, _ := fields[1].(string)
-							modelID, _ := fields[12].(string)
-							capVal := 1
-							if c, ok := fields[6].(float64); ok {
-								capVal = int(c)
-							}
-							numVal := 1
-							if n, ok := fields[5].(float64); ok {
-								numVal = int(n)
-							}
+	// Gemini Web's otAQ7b payload carries the live model registry at index 15:
+	//   payload[0]=1, [1]=[flags], ..., [15]=[[modelEntry], [modelEntry], ...]
+	// Each modelEntry: [0]=hex model id, [1]=category ("Flash"), [9]/[17]=model
+	// number, [11]=display name ("3.8 Flash").
+	if len(payload) <= 15 {
+		return results
+	}
+	rawModels, ok := payload[15].([]any)
+	if !ok || len(rawModels) == 0 {
+		return results
+	}
 
-							if modelName != "" {
-								results = append(results, GeminiModel{
-									ID:            modelName,
-									DisplayName:   modelName,
-									ModelID:       modelID,
-									Capacity:      capVal,
-									CapacityField: 12,
-									ModelNumber:   numVal,
-								})
-							}
-						}
-					}
-				}
-			}
+	for _, mAny := range rawModels {
+		md, ok := mAny.([]any)
+		if !ok || len(md) == 0 {
+			continue
 		}
+		hexID, _ := md[0].(string)
+		if hexID == "" {
+			continue
+		}
+		category := stringAtIdx(md, 1) // "Flash", "Pro", "Argon", "Flash-Lite"
+		display := stringAtIdx(md, 11) // "3.8 Flash"
+		if display == "" {
+			display = stringAtIdx(md, 1)
+		}
+		modelNumber := 1
+		if n, ok := intAtIdx(md, 17); ok {
+			modelNumber = n
+		} else if n, ok := intAtIdx(md, 9); ok {
+			modelNumber = n
+		}
+
+		friendlyID := mapCategoryToFriendlyID(category)
+		if friendlyID == "" {
+			continue
+		}
+
+		results = append(results, GeminiModel{
+			ID:            friendlyID,
+			DisplayName:   display,
+			ModelID:       hexID,
+			Capacity:      2,
+			CapacityField: 12,
+			ModelNumber:   modelNumber,
+		})
 	}
 	return results
+}
+
+// mapCategoryToFriendlyID maps Gemini Web's category slug to Geminiplexer's
+// stable public model IDs so existing clients keep working while the hex model
+// id and model number come live from Google.
+func mapCategoryToFriendlyID(category string) string {
+	switch strings.ToLower(strings.TrimSpace(category)) {
+	case "argon":
+		return "gemini-4-argon"
+	case "pro":
+		return "gemini-3.1-pro"
+	case "flash", "3.8 flash", "gemini flash":
+		return "gemini-3.8-flash"
+	case "flash-lite", "3.5 flash-lite", "flash lite":
+		return "gemini-flash-lite"
+	default:
+		return ""
+	}
+}
+
+func stringAtIdx(arr []any, idx int) string {
+	if idx >= 0 && idx < len(arr) {
+		if s, ok := arr[idx].(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+// joinModelIDs renders model IDs (with hex ModelID) for log diagnostics.
+func joinModelIDs(models []GeminiModel) string {
+	parts := make([]string, 0, len(models))
+	for _, m := range models {
+		parts = append(parts, m.ID+"/"+m.ModelID)
+	}
+	return strings.Join(parts, ", ")
+}
+
+// parseBatchEnvelope parses a batchexecute response body, which is prefixed by
+// a length line (e.g. "14688\n") followed by one or more JSON arrays, and may
+// carry Google's )]}' anti-XSSI prefix. Mirrors gemini-stealth-bridge's
+// ParseBatch: skip the length/digit line, then decode the first JSON array.
+func parseBatchEnvelope(body string) ([]any, error) {
+	s := strings.TrimSpace(body)
+	if strings.HasPrefix(s, ")]}'") {
+		s = strings.TrimSpace(strings.TrimPrefix(s, ")]}'"))
+	}
+	lines := strings.Split(s, "\n")
+	for _, line := range lines {
+		t := strings.TrimSpace(line)
+		if t == "" {
+			continue
+		}
+		// Skip pure numeric length-prefix lines.
+		if _, err := strconv.Atoi(t); err == nil {
+			continue
+		}
+		var arr []any
+		if err := json.Unmarshal([]byte(t), &arr); err != nil {
+			continue
+		}
+		return arr, nil
+	}
+	return nil, fmt.Errorf("no JSON envelope found in batchexecute body")
+}
+
+func intAtIdx(arr []any, idx int) (int, bool) {
+	if idx >= 0 && idx < len(arr) {
+		if f, ok := arr[idx].(float64); ok && float64(int(f)) == f {
+			return int(f), true
+		}
+	}
+	return 0, false
 }

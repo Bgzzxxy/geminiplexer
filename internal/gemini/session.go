@@ -2,6 +2,8 @@ package gemini
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -143,6 +145,24 @@ func (s *AccountSession) GetPSIDTS() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.Secure1PSIDTS
+}
+
+// SAPISIDHash computes the Authorization: SAPISIDHASH value required by Gemini
+// Web's batchexecute endpoint (model discovery + quota RPCs). Formula matches
+// gemini-stealth-bridge: sha1("<unix_ts> <SAPISID> <origin>").
+func (s *AccountSession) SAPISIDHash(origin string) string {
+	s.mu.RLock()
+	sapisid := s.SAPISID
+	s.mu.RUnlock()
+	if sapisid == "" {
+		return ""
+	}
+	if origin == "" {
+		origin = "https://gemini.google.com"
+	}
+	ts := time.Now().Unix()
+	sum := sha1.Sum([]byte(fmt.Sprintf("%d %s %s", ts, sapisid, origin)))
+	return fmt.Sprintf("SAPISIDHASH %d_%s", ts, hex.EncodeToString(sum[:]))
 }
 
 func (s *AccountSession) getFullCookieHeaderLocked() string {
