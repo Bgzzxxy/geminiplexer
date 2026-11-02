@@ -19,3 +19,4 @@ internal/server/dist/
 internal/server/dashboard_embedded.go
 
 accounts.yaml.bak*
+reference-gemini-stealth-bridge/
