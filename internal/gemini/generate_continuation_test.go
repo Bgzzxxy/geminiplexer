@@ -20,10 +20,13 @@ func TestBuildInnerPayloadFreshConversation(t *testing.T) {
 		t.Fatalf("expected 81 elements, got %d", len(inner))
 	}
 
-	// inner[0] = [prompt]
+	// inner[0] = [text, 0, nil, filesSlot, nil, nil, 0] (7 elements).
 	p0, ok := inner[0].([]any)
-	if !ok || len(p0) != 1 || p0[0] != "hi" {
-		t.Fatalf("inner[0] wrong: %#v", inner[0])
+	if !ok || len(p0) != 7 {
+		t.Fatalf("inner[0] must be 7-element prompt array, got %#v", inner[0])
+	}
+	if p0[0] != "hi" {
+		t.Fatalf("inner[0][0] wrong: %#v", p0[0])
 	}
 
 	// inner[2] must be nil when no continuation meta.

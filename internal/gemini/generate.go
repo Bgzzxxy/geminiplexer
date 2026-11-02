@@ -65,7 +65,13 @@ func (m ContinuationMeta) ToMeta() []any {
 // every turn".
 func buildInnerPayload(prompt string, model GeminiModel, thinkingLevel int, meta ContinuationMeta, requestID string) string {
 	inner := make([]any, 81)
-	inner[0] = []any{prompt}
+	// inner[0] is the 7-element prompt message array, not a bare [prompt]:
+	//   [text, 0, nil, filesSlot, nil, nil, 0]
+	// filesSlot stays nil until attachment upload is implemented. This shape is
+	// what Gemini Web's StreamGenerate expects; a 1-element slot caused prompt
+	// truncation upstream.
+	filesSlot := any(nil)
+	inner[0] = []any{prompt, 0, nil, filesSlot, nil, nil, 0}
 	inner[1] = []any{"en"}
 	if !meta.Empty() {
 		inner[2] = meta.ToMeta()
