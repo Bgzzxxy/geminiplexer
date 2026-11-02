@@ -25,14 +25,47 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now().Unix()
-	models := []ModelCard{
-		{ID: "gemini-4-argon", Object: "model", Created: now, OwnedBy: "google"},
-		{ID: "gemini-3.1-pro", Object: "model", Created: now, OwnedBy: "google"},
-		{ID: "gemini-3.8-flash", Object: "model", Created: now, OwnedBy: "google"},
-		{ID: "gemini-flash-lite", Object: "model", Created: now, OwnedBy: "google"},
-		{ID: "gemini-auto", Object: "model", Created: now, OwnedBy: "google"},
-		{ID: "gemini-2.5-pro", Object: "model", Created: now, OwnedBy: "google"},
-		{ID: "gemini-2.5-flash", Object: "model", Created: now, OwnedBy: "google"},
+
+	// Collect models dynamically from all healthy sessions
+	seen := make(map[string]bool)
+	var models []ModelCard
+
+	sessions := s.pool.GetSessions()
+	for _, sess := range sessions {
+		if !sess.IsHealthy {
+			continue
+		}
+		for _, m := range sess.CachedModels {
+			if !seen[m.ID] {
+				seen[m.ID] = true
+				models = append(models, ModelCard{
+					ID:      m.ID,
+					Object:  "model",
+					Created: now,
+					OwnedBy: "google",
+				})
+			}
+		}
+	}
+
+	// Always include well-known aliases as fallback
+	wellKnown := []string{
+		"gemini-4-argon",
+		"gemini-3.1-pro",
+		"gemini-3.8-flash",
+		"gemini-flash-lite",
+		"gemini-auto",
+	}
+	for _, id := range wellKnown {
+		if !seen[id] {
+			seen[id] = true
+			models = append(models, ModelCard{
+				ID:      id,
+				Object:  "model",
+				Created: now,
+				OwnedBy: "google",
+			})
+		}
 	}
 
 	resp := ModelListResponse{

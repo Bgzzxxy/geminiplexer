@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"geminiplexer/internal/config"
+	"geminiplexer/internal/transport"
 )
 
 var (
@@ -28,6 +30,7 @@ type AccountSession struct {
 	RawCookies             string
 	Secure1PSID            string
 	Secure1PSIDTS          string
+	SIDCC                  string
 	Token                  string
 	BuildLabel             string
 	SessionID              string
@@ -40,7 +43,9 @@ type AccountSession struct {
 	LastUsed               time.Time
 	LastRotated            time.Time
 	CooldownUntil          time.Time
+	QuotaResetAt           time.Time
 	IsHealthy              bool
+	ProxyURL               string
 }
 
 func parseCookieField(rawCookies, key string) string {
@@ -57,6 +62,14 @@ func parseCookieField(rawCookies, key string) string {
 func NewAccountSession(cfg config.AccountConfig) *AccountSession {
 	psid := parseCookieField(cfg.Cookies, "__Secure-1PSID")
 	psidts := parseCookieField(cfg.Cookies, "__Secure-1PSIDTS")
+	sidcc := parseCookieField(cfg.Cookies, "SIDCC")
+
+	// Create stealth client with Chrome uTLS fingerprint
+	client, err := transport.NewStealthClient(cfg.Proxy, 5*time.Minute)
+	if err != nil {
+		log.Printf("[Session] Warning: failed to create stealth client for %s, falling back to standard: %v", cfg.ID, err)
+		client = &http.Client{Timeout: 5 * time.Minute}
+	}
 
 	return &AccountSession{
 		ID:            cfg.ID,
@@ -64,10 +77,10 @@ func NewAccountSession(cfg config.AccountConfig) *AccountSession {
 		RawCookies:    cfg.Cookies,
 		Secure1PSID:   psid,
 		Secure1PSIDTS: psidts,
-		Client: &http.Client{
-			Timeout: 5 * time.Minute,
-		},
-		IsHealthy: true,
+		SIDCC:         sidcc,
+		Client:        client,
+		IsHealthy:     true,
+		ProxyURL:      cfg.Proxy,
 	}
 }
 
@@ -83,6 +96,7 @@ func (s *AccountSession) UpdateCookies(rawCookies string) {
 	s.RawCookies = rawCookies
 	s.Secure1PSID = parseCookieField(rawCookies, "__Secure-1PSID")
 	s.Secure1PSIDTS = parseCookieField(rawCookies, "__Secure-1PSIDTS")
+	s.SIDCC = parseCookieField(rawCookies, "SIDCC")
 	s.IsHealthy = true
 }
 
@@ -118,6 +132,9 @@ func (s *AccountSession) getFullCookieHeaderLocked() string {
 	if s.Secure1PSIDTS != "" {
 		parts = append(parts, fmt.Sprintf("__Secure-1PSIDTS=%s", s.Secure1PSIDTS))
 	}
+	if s.SIDCC != "" {
+		parts = append(parts, fmt.Sprintf("SIDCC=%s", s.SIDCC))
+	}
 	return strings.Join(parts, "; ")
 }
 
@@ -127,6 +144,28 @@ func (s *AccountSession) GetFullCookieHeader() string {
 	return s.getFullCookieHeaderLocked()
 }
 
+// absorbSetCookies reads Set-Cookie headers from any response and updates session state.
+func (s *AccountSession) absorbSetCookies(resp *http.Response) {
+	for _, c := range resp.Cookies() {
+		switch c.Name {
+		case "__Secure-1PSIDTS":
+			s.mu.Lock()
+			s.Secure1PSIDTS = c.Value
+			s.mu.Unlock()
+		case "__Secure-1PSID":
+			s.mu.Lock()
+			s.Secure1PSID = c.Value
+			s.mu.Unlock()
+		case "SIDCC":
+			s.mu.Lock()
+			s.SIDCC = c.Value
+			s.mu.Unlock()
+		}
+	}
+}
+
+// Init fetches /app to extract SNlM0e token, build label, and session ID.
+// Also absorbs any updated cookies from the response.
 func (s *AccountSession) Init(ctx context.Context) error {
 	s.mu.Lock()
 	endpoint := "https://gemini.google.com/app"
@@ -144,7 +183,7 @@ func (s *AccountSession) Init(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("create init request: %w", err)
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	transport.SetNavigateHeaders(req)
 	req.Header.Set("Cookie", cookieHdr)
 
 	resp, err := client.Do(req)
@@ -152,6 +191,9 @@ func (s *AccountSession) Init(ctx context.Context) error {
 		return fmt.Errorf("execute init request: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// Absorb any cookies from response
+	s.absorbSetCookies(resp)
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("gemini init returned status %d", resp.StatusCode)
@@ -191,5 +233,19 @@ func (s *AccountSession) Init(ctx context.Context) error {
 	s.IsHealthy = true
 	s.mu.Unlock()
 
+	log.Printf("[Session] %s: SNlM0e acquired, build=%s", s.ID, bl)
 	return nil
+}
+
+// SelfHeal attempts to re-init the session when SNlM0e is stale or expired.
+// Returns true if self-heal succeeded.
+func (s *AccountSession) SelfHeal(ctx context.Context) bool {
+	log.Printf("[Session] %s: attempting self-heal (re-fetching SNlM0e)", s.ID)
+	err := s.Init(ctx)
+	if err != nil {
+		log.Printf("[Session] %s: self-heal failed: %v", s.ID, err)
+		return false
+	}
+	log.Printf("[Session] %s: self-heal succeeded", s.ID)
+	return true
 }

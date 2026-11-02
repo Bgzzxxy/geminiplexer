@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -33,9 +34,35 @@ func NewServer(cfg *config.Config, p *pool.AccountPool, reloadFn ...func() error
 	mux.HandleFunc("/admin/cookies", s.handleAdminCookies)
 	mux.HandleFunc("/admin/reload", s.handleAdminReload)
 	mux.HandleFunc("/api/telemetry", s.handleAPITelemetry)
+
+	// Health check - always reachable without auth
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
+	})
+
+	// Readiness check - reports whether any accounts are healthy
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		sessions := p.GetSessions()
+		healthy := 0
+		for _, sess := range sessions {
+			if sess.IsHealthy {
+				healthy++
+			}
+		}
+		status := "ready"
+		code := http.StatusOK
+		if healthy == 0 {
+			status = "not_ready"
+			code = http.StatusServiceUnavailable
+		}
+		w.WriteHeader(code)
+		json.NewEncoder(w).Encode(map[string]any{
+			"status":           status,
+			"total_accounts":   len(sessions),
+			"healthy_accounts": healthy,
+		})
 	})
 
 	RegisterDashboard(mux)
@@ -43,7 +70,7 @@ func NewServer(cfg *config.Config, p *pool.AccountPool, reloadFn ...func() error
 	corsHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key, x-goog-api-key")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
 			return
