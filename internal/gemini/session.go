@@ -195,6 +195,8 @@ func (s *AccountSession) Init(ctx context.Context) error {
 	// Absorb any cookies from response
 	s.absorbSetCookies(resp)
 
+	log.Printf("[Session] %s: Init response status=%d, body=%d bytes", s.ID, resp.StatusCode, resp.ContentLength)
+
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("gemini init returned status %d", resp.StatusCode)
 	}
@@ -204,6 +206,9 @@ func (s *AccountSession) Init(ctx context.Context) error {
 		return fmt.Errorf("read init body: %w", err)
 	}
 	body := string(bodyBytes)
+
+	log.Printf("[Session] %s: Init body size=%d bytes, has_SNlM0e=%v", s.ID, len(bodyBytes),
+		strings.Contains(body, "SNlM0e"))
 
 	token := ""
 	if m := accessTokenRegex.FindStringSubmatch(body); len(m) >= 2 {
