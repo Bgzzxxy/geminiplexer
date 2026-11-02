@@ -192,6 +192,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		maxAttempts = 1
 	}
 
+	start := time.Now()
 	var (
 		sess           *gemini.AccountSession
 		gModel         gemini.GeminiModel
@@ -420,6 +421,17 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 				flusher.Flush()
 			}
 
+			GlobalTelemetry.RecordRequest(RequestLogItem{
+				ID:        reqID,
+				Timestamp: time.Now().Format("15:04:05"),
+				Protocol:  "OpenAI",
+				Model:     modelName,
+				Account:   sess.ID,
+				LatencyMs: time.Since(start).Milliseconds(),
+				Status:    http.StatusOK,
+				ToolCalls: len(toolCalls) > 0,
+			}, int64(len(finalContent)/4))
+
 			fmt.Fprintf(w, "data: [DONE]\n\n")
 			flusher.Flush()
 			return
@@ -471,6 +483,17 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		for chunk := range streamChan {
 			processChunk(chunk)
 		}
+
+		GlobalTelemetry.RecordRequest(RequestLogItem{
+			ID:        reqID,
+			Timestamp: time.Now().Format("15:04:05"),
+			Protocol:  "OpenAI",
+			Model:     modelName,
+			Account:   sess.ID,
+			LatencyMs: time.Since(start).Milliseconds(),
+			Status:    http.StatusOK,
+			ToolCalls: false,
+		}, int64(len(prevText)/4))
 
 		fmt.Fprintf(w, "data: [DONE]\n\n")
 		flusher.Flush()
@@ -542,6 +565,17 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			TotalTokens:      (len(prompt) + len(finalContent)) / 4,
 		},
 	}
+
+	GlobalTelemetry.RecordRequest(RequestLogItem{
+		ID:        reqID,
+		Timestamp: time.Now().Format("15:04:05"),
+		Protocol:  "OpenAI",
+		Model:     modelName,
+		Account:   sess.ID,
+		LatencyMs: time.Since(start).Milliseconds(),
+		Status:    http.StatusOK,
+		ToolCalls: len(toolCalls) > 0,
+	}, int64(len(finalContent)/4))
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)

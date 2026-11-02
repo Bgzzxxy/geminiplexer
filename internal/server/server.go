@@ -32,10 +32,13 @@ func NewServer(cfg *config.Config, p *pool.AccountPool, reloadFn ...func() error
 	mux.HandleFunc("/claude/v1/messages", s.handleClaudeMessages)
 	mux.HandleFunc("/admin/cookies", s.handleAdminCookies)
 	mux.HandleFunc("/admin/reload", s.handleAdminReload)
+	mux.HandleFunc("/api/telemetry", s.handleAPITelemetry)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
+
+	RegisterDashboard(mux)
 
 	corsHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
