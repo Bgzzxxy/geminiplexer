@@ -37,6 +37,7 @@ func NewServer(cfg *config.Config, p *pool.AccountPool, reloadFn ...func() error
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/models", s.handleModels)
 	mux.HandleFunc("/v1/chat/completions", s.handleChatCompletions)
+	mux.HandleFunc("/v1/responses", s.handleResponses)
 	mux.HandleFunc("/v1/messages", s.handleClaudeMessages)
 	mux.HandleFunc("/messages", s.handleClaudeMessages)
 	mux.HandleFunc("/claude/v1/messages", s.handleClaudeMessages)
