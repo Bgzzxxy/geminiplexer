@@ -31,6 +31,13 @@ type AccountSession struct {
 	Secure1PSID            string
 	Secure1PSIDTS          string
 	SIDCC                  string
+	Secure1PSIDCC          string
+	SID                    string
+	HSID                   string
+	SSID                   string
+	APISID                 string
+	SAPISID                string
+	NID                    string
 	Token                  string
 	BuildLabel             string
 	SessionID              string
@@ -62,11 +69,23 @@ func parseCookieField(rawCookies, key string) string {
 	return ""
 }
 
-func NewAccountSession(cfg config.AccountConfig) *AccountSession {
-	psid := parseCookieField(cfg.Cookies, "__Secure-1PSID")
-	psidts := parseCookieField(cfg.Cookies, "__Secure-1PSIDTS")
-	sidcc := parseCookieField(cfg.Cookies, "SIDCC")
+// applyRawCookies parses the full Google auth cookie set out of a raw cookie
+// string and stores it on the session. Callers must hold s.mu (write lock).
+func (s *AccountSession) applyRawCookies(rawCookies string) {
+	s.RawCookies = rawCookies
+	s.Secure1PSID = parseCookieField(rawCookies, "__Secure-1PSID")
+	s.Secure1PSIDTS = parseCookieField(rawCookies, "__Secure-1PSIDTS")
+	s.SIDCC = parseCookieField(rawCookies, "SIDCC")
+	s.Secure1PSIDCC = parseCookieField(rawCookies, "__Secure-1PSIDCC")
+	s.SID = parseCookieField(rawCookies, "SID")
+	s.HSID = parseCookieField(rawCookies, "HSID")
+	s.SSID = parseCookieField(rawCookies, "SSID")
+	s.APISID = parseCookieField(rawCookies, "APISID")
+	s.SAPISID = parseCookieField(rawCookies, "SAPISID")
+	s.NID = parseCookieField(rawCookies, "NID")
+}
 
+func NewAccountSession(cfg config.AccountConfig) *AccountSession {
 	// Create stealth client with Chrome uTLS fingerprint
 	client, err := transport.NewStealthClient(cfg.Proxy, 5*time.Minute)
 	if err != nil {
@@ -75,18 +94,15 @@ func NewAccountSession(cfg config.AccountConfig) *AccountSession {
 	}
 
 	sess := &AccountSession{
-		ID:            cfg.ID,
-		AuthUser:      cfg.AuthUser,
-		RawCookies:    cfg.Cookies,
-		Secure1PSID:   psid,
-		Secure1PSIDTS: psidts,
-		SIDCC:         sidcc,
-		Client:        client,
-		IsHealthy:     true,
-		ProxyURL:      cfg.Proxy,
-		Group:         cfg.Group,
-		concSem:       make(chan struct{}, 1), // 1 concurrent request per account
+		ID:        cfg.ID,
+		AuthUser:  cfg.AuthUser,
+		Client:    client,
+		IsHealthy: true,
+		ProxyURL:  cfg.Proxy,
+		Group:     cfg.Group,
+		concSem:   make(chan struct{}, 1), // 1 concurrent request per account
 	}
+	sess.applyRawCookies(cfg.Cookies)
 	// Pre-fill the semaphore (available slot)
 	sess.concSem <- struct{}{}
 	return sess
@@ -101,10 +117,7 @@ func (s *AccountSession) SetEndpointOverride(u string) {
 func (s *AccountSession) UpdateCookies(rawCookies string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.RawCookies = rawCookies
-	s.Secure1PSID = parseCookieField(rawCookies, "__Secure-1PSID")
-	s.Secure1PSIDTS = parseCookieField(rawCookies, "__Secure-1PSIDTS")
-	s.SIDCC = parseCookieField(rawCookies, "SIDCC")
+	s.applyRawCookies(rawCookies)
 	s.IsHealthy = true
 }
 
@@ -134,14 +147,27 @@ func (s *AccountSession) GetPSIDTS() string {
 
 func (s *AccountSession) getFullCookieHeaderLocked() string {
 	var parts []string
-	if s.Secure1PSID != "" {
-		parts = append(parts, fmt.Sprintf("__Secure-1PSID=%s", s.Secure1PSID))
+	// Emit the full auth cookie set. Google's Gemini web app requires more than
+	// just __Secure-1PSID/1PSIDTS/SIDCC to serve an authenticated /app page.
+	pairs := []struct {
+		name  string
+		value string
+	}{
+		{"__Secure-1PSID", s.Secure1PSID},
+		{"__Secure-1PSIDTS", s.Secure1PSIDTS},
+		{"SIDCC", s.SIDCC},
+		{"__Secure-1PSIDCC", s.Secure1PSIDCC},
+		{"SID", s.SID},
+		{"HSID", s.HSID},
+		{"SSID", s.SSID},
+		{"APISID", s.APISID},
+		{"SAPISID", s.SAPISID},
+		{"NID", s.NID},
 	}
-	if s.Secure1PSIDTS != "" {
-		parts = append(parts, fmt.Sprintf("__Secure-1PSIDTS=%s", s.Secure1PSIDTS))
-	}
-	if s.SIDCC != "" {
-		parts = append(parts, fmt.Sprintf("SIDCC=%s", s.SIDCC))
+	for _, p := range pairs {
+		if p.value != "" {
+			parts = append(parts, p.name+"="+p.value)
+		}
 	}
 	return strings.Join(parts, "; ")
 }
@@ -167,6 +193,34 @@ func (s *AccountSession) absorbSetCookies(resp *http.Response) {
 		case "SIDCC":
 			s.mu.Lock()
 			s.SIDCC = c.Value
+			s.mu.Unlock()
+		case "__Secure-1PSIDCC":
+			s.mu.Lock()
+			s.Secure1PSIDCC = c.Value
+			s.mu.Unlock()
+		case "SID":
+			s.mu.Lock()
+			s.SID = c.Value
+			s.mu.Unlock()
+		case "HSID":
+			s.mu.Lock()
+			s.HSID = c.Value
+			s.mu.Unlock()
+		case "SSID":
+			s.mu.Lock()
+			s.SSID = c.Value
+			s.mu.Unlock()
+		case "APISID":
+			s.mu.Lock()
+			s.APISID = c.Value
+			s.mu.Unlock()
+		case "SAPISID":
+			s.mu.Lock()
+			s.SAPISID = c.Value
+			s.mu.Unlock()
+		case "NID":
+			s.mu.Lock()
+			s.NID = c.Value
 			s.mu.Unlock()
 		}
 	}
