@@ -70,19 +70,47 @@ function authUserFor(accountId) {
   return String(n - 1);
 }
 
+function xhrRequest(method, url, headers, body) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url, true);
+    for (const [k, v] of Object.entries(headers)) {
+      xhr.setRequestHeader(k, v);
+    }
+    xhr.timeout = 12000;
+    xhr.onload = () => {
+      const text = xhr.responseText || "";
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(text);
+      } else {
+        reject(new Error(`HTTP ${xhr.status}: ${text.slice(0, 300)}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error(`network error fetching ${url}`));
+    xhr.ontimeout = () => reject(new Error(`timeout (12s) fetching ${url}`));
+    xhr.send(body);
+  });
+}
+
 async function inject(accountId, cookies, authUser) {
   const cfg = await getConfig();
   const headers = { "Content-Type": "application/json" };
   if (cfg.adminKey) headers["Authorization"] = `Bearer ${cfg.adminKey}`;
 
-  const resp = await fetch(`${cfg.gateway}/admin/cookies`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ id: accountId, cookies, auth_user: authUser }),
-  });
-  const text = await resp.text();
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${text}`);
-  return text;
+  const url = `${cfg.gateway}/admin/cookies`;
+
+  // Preflight: confirm the gateway is reachable before POST so the user gets
+  // a clear "gateway not running" message instead of a generic network error.
+  try {
+    await xhrRequest("GET", `${cfg.gateway}/health`, {}, null);
+  } catch (e) {
+    throw new Error(`Gateway tidak reachable di ${cfg.gateway} (${e.message}). Pastikan API jalan & URL benar.`);
+  }
+
+  // XHR (not fetch): Firefox MV2 extensions are CORS-enforced for fetch() from
+  // moz-extension:// pages, but XHR honors the <all_urls> host permission and
+  // bypasses CORS. fetch() here surfaces as "NetworkError ... fetch Resource".
+  return xhrRequest("POST", url, headers, JSON.stringify({ id: accountId, cookies, auth_user: authUser }));
 }
 
 async function harvestAndInject(url, explicitAccountId) {

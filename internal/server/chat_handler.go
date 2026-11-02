@@ -228,7 +228,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		downgraded := false
 
 		for chunk := range streamChan {
-			log.Printf("[Chat] received chunk: text=%q, isDone=%v, modelID=%q, responseModel=%q", chunk.Text, chunk.IsDone, chunk.ModelID, chunk.ResponseModel)
+			log.Printf("[Chat] received chunk: text=%q, isDone=%v, modelID=%q, responseModel=%q, cid=%q, rid=%q, rcid=%q, ctxTok=%q", chunk.Text, chunk.IsDone, chunk.ModelID, chunk.ResponseModel, chunk.CID, chunk.RID, chunk.RCID, chunk.ContextToken)
 			bufferedChunks = append(bufferedChunks, chunk)
 
 			// Check for model downgrade using ResponseModel (pj[39]) or ModelID (pj[80])

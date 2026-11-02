@@ -1,7 +1,7 @@
 # Gemini Web To API Configuration Example
 host: "127.0.0.1"
 port: 8787
-admin_key: "change_this_secret_admin_token"
+admin_key: "t"
 
 accounts:
   - id: "account_1"
