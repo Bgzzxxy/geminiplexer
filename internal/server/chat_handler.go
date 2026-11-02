@@ -185,7 +185,8 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	prompt := flattenMessages(req.Messages, req.Tools)
 	thinkingLevel := parseReasoningEffort(req.ReasoningEffort)
-	log.Printf("[Chat] handleChatCompletions: model=%s, prompt_len=%d, stream=%v", modelName, len(prompt), req.Stream)
+	group := s.resolveGroupFromRequest(r)
+	log.Printf("[Chat] handleChatCompletions: model=%s, prompt_len=%d, stream=%v, group=%q", modelName, len(prompt), req.Stream, group)
 
 	maxAttempts := len(s.pool.GetSessions())
 	if maxAttempts <= 0 {
@@ -203,7 +204,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	)
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		sess, gModel, release, err = s.pool.Acquire(r.Context(), modelName)
+		sess, gModel, release, err = s.pool.AcquireForGroup(r.Context(), modelName, group)
 		if err != nil {
 			lastErr = err
 			break
@@ -222,16 +223,27 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// Buffer initial chunk to inspect ModelID for downgrade detection
+		// Buffer initial chunk to inspect ModelID/ResponseModel for downgrade detection
 		bufferedChunks = nil
 		downgraded := false
 
 		for chunk := range streamChan {
-			log.Printf("[Chat] received chunk: text=%q, isDone=%v, modelID=%q", chunk.Text, chunk.IsDone, chunk.ModelID)
+			log.Printf("[Chat] received chunk: text=%q, isDone=%v, modelID=%q, responseModel=%q", chunk.Text, chunk.IsDone, chunk.ModelID, chunk.ResponseModel)
 			bufferedChunks = append(bufferedChunks, chunk)
-			if chunk.ModelID != "" {
-				if strings.Contains(strings.ToLower(modelName), "pro") && strings.Contains(strings.ToLower(chunk.ModelID), "flash") {
+
+			// Check for model downgrade using ResponseModel (pj[39]) or ModelID (pj[80])
+			responseModelStr := chunk.ResponseModel
+			if responseModelStr == "" {
+				responseModelStr = chunk.ModelID
+			}
+			if responseModelStr != "" {
+				requestedLower := strings.ToLower(modelName)
+				responseLower := strings.ToLower(responseModelStr)
+				// Downgrade: requested pro/argon but got flash/lite
+				if (strings.Contains(requestedLower, "pro") || strings.Contains(requestedLower, "argon")) &&
+					(strings.Contains(responseLower, "flash") || strings.Contains(responseLower, "lite")) {
 					downgraded = true
+					log.Printf("[Chat] model downgrade detected: requested=%s, got=%s (account=%s)", modelName, responseModelStr, sess.ID)
 				}
 				break
 			}
