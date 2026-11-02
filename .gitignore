@@ -18,3 +18,4 @@ dashboard/
 internal/server/dist/
 internal/server/dashboard_embedded.go
 
+accounts.yaml.bak*

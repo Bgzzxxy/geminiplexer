@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -89,8 +90,18 @@ func (s *Server) handleAdminCookies(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Persist to the YAML config file so the injection survives a restart.
+	persisted := ""
+	if s.cfg.Path != "" {
+		if err := config.UpdateAccountCookies(s.cfg.Path, req.ID, req.Cookies, req.AuthUser); err != nil {
+			log.Printf("[Admin] cookie persisted to file: %v", err)
+		} else {
+			persisted = ", persisted to disk"
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(fmt.Sprintf(`{"status":"ok","message":"account %s updated"}`, req.ID)))
+	w.Write([]byte(fmt.Sprintf(`{"status":"ok","message":"account %s updated%s"}`, req.ID, persisted)))
 }
 
 func (s *Server) handleAdminReload(w http.ResponseWriter, r *http.Request) {

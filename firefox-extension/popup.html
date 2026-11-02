@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gemini Cookie Injector</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f1115;
+      --panel: #161a21;
+      --border: #262c36;
+      --text: #e5e9f0;
+      --muted: #8a93a3;
+      --accent: #4f8cff;
+      --ok: #3ecf8e;
+      --err: #ff6b6b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      width: 320px;
+      background: var(--bg);
+      color: var(--text);
+      font: 13px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif;
+      padding: 14px;
+    }
+    h1 { font-size: 14px; margin: 0 0 2px; }
+    .sub { color: var(--muted); font-size: 11px; margin: 0 0 12px; }
+    label { display: block; font-size: 11px; color: var(--muted); margin: 10px 0 3px; }
+    input, select {
+      width: 100%;
+      padding: 7px 9px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 12px;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--accent); }
+    .row { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
+    .row input[type="checkbox"] { width: auto; }
+    .row label { margin: 0; }
+    button {
+      width: 100%;
+      margin-top: 14px;
+      padding: 9px;
+      background: var(--accent);
+      border: 0;
+      border-radius: 6px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button:hover { filter: brightness(1.1); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #status {
+      margin-top: 12px;
+      padding: 9px;
+      border-radius: 6px;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      display: none;
+    }
+    #status.ok { background: rgba(62,207,142,.12); color: var(--ok); display: block; }
+    #status.err { background: rgba(255,107,107,.12); color: var(--err); display: block; }
+    .hint { color: var(--muted); font-size: 10.5px; margin-top: 12px; line-height: 1.4; }
+    code { background: var(--panel); padding: 1px 4px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Gemini Cookie Injector</h1>
+  <p class="sub">Ambil cookie Google → injek ke geminiplexer.</p>
+
+  <label for="gateway">Gateway URL</label>
+  <input id="gateway" type="text" placeholder="http://localhost:4981" />
+
+  <label for="adminKey">Admin key (<code>admin_key</code> di accounts.yaml)</label>
+  <input id="adminKey" type="password" placeholder="sk-…" />
+
+  <label for="targetAccount">Akun target</label>
+  <select id="targetAccount">
+    <option value="auto">Auto (dari authuser URL)</option>
+    <option value="account_1">account_1</option>
+    <option value="account_2">account_2</option>
+    <option value="account_3">account_3</option>
+    <option value="account_4">account_4</option>
+    <option value="account_5">account_5</option>
+  </select>
+
+  <div class="row">
+    <input id="autoInject" type="checkbox" checked />
+    <label for="autoInject">Auto-inject saat buka Gemini (sudah login)</label>
+  </div>
+
+  <button id="injectBtn">Injek sekarang</button>
+  <div id="status"></div>
+
+  <p class="hint">
+    Pastikan kamu sudah <b>login Gemini</b> di Firefox dengan akun yang mau
+    diinjek. Cookie dibaca dari sesi aktif (termasuk HttpOnly).
+  </p>
+
+  <script src="popup.js"></script>
+</body>
+</html>
