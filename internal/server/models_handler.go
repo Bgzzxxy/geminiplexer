@@ -30,20 +30,22 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 	seen := make(map[string]bool)
 	var models []ModelCard
 
-	sessions := s.pool.GetSessions()
-	for _, sess := range sessions {
-		if !sess.IsHealthy {
-			continue
-		}
-		for _, m := range sess.CachedModels {
-			if !seen[m.ID] {
-				seen[m.ID] = true
-				models = append(models, ModelCard{
-					ID:      m.ID,
-					Object:  "model",
-					Created: now,
-					OwnedBy: "google",
-				})
+	if s.pool != nil {
+		sessions := s.pool.GetSessions()
+		for _, sess := range sessions {
+			if !sess.IsHealthy {
+				continue
+			}
+			for _, m := range sess.CachedModels {
+				if !seen[m.ID] {
+					seen[m.ID] = true
+					models = append(models, ModelCard{
+						ID:      m.ID,
+						Object:  "model",
+						Created: now,
+						OwnedBy: "google",
+					})
+				}
 			}
 		}
 	}

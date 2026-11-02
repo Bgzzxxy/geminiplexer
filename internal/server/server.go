@@ -44,11 +44,15 @@ func NewServer(cfg *config.Config, p *pool.AccountPool, reloadFn ...func() error
 	// Readiness check - reports whether any accounts are healthy
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		sessions := p.GetSessions()
 		healthy := 0
-		for _, sess := range sessions {
-			if sess.IsHealthy {
-				healthy++
+		total := 0
+		if p != nil {
+			sessions := p.GetSessions()
+			total = len(sessions)
+			for _, sess := range sessions {
+				if sess.IsHealthy {
+					healthy++
+				}
 			}
 		}
 		status := "ready"
@@ -60,7 +64,7 @@ func NewServer(cfg *config.Config, p *pool.AccountPool, reloadFn ...func() error
 		w.WriteHeader(code)
 		json.NewEncoder(w).Encode(map[string]any{
 			"status":           status,
-			"total_accounts":   len(sessions),
+			"total_accounts":   total,
 			"healthy_accounts": healthy,
 		})
 	})
