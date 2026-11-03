@@ -133,6 +133,59 @@ func (s *AccountSession) FetchModels(ctx context.Context) ([]GeminiModel, error)
 	return models, nil
 }
 
+// CanonicalModelID maps user-facing model strings (including aliases) to the
+// stable public ID used by the live registry lookup.
+func CanonicalModelID(requested string) string {
+	switch strings.ToLower(strings.TrimSpace(requested)) {
+	case "gemini-4-argon", "gemini-argon", "argon", "4-argon":
+		return "gemini-4-argon"
+	case "gemini-3.1-pro", "gemini-pro", "pro":
+		return "gemini-3.1-pro"
+	case "gemini-3.8-flash", "gemini-flash", "flash":
+		return "gemini-3.8-flash"
+	case "gemini-flash-lite", "flash-lite", "gemini-3.5-flash-lite":
+		return "gemini-flash-lite"
+	default:
+		return "gemini-auto"
+	}
+}
+
+// ResolveModel resolves a requested model name against the session's
+// live-discovered registry. The registry carries the correct ModelNumber
+// (md17) that Gemini Web uses to route the request; hardcoding it caused
+// silent downgrade to Flash-Lite. Falls back to DefaultModel only when
+// discovery has not populated CachedModels yet.
+func (s *AccountSession) ResolveModel(requested string) GeminiModel {
+	want := CanonicalModelID(requested)
+	s.mu.RLock()
+	cached := s.CachedModels
+	s.mu.RUnlock()
+	for _, m := range cached {
+		if strings.EqualFold(m.ID, want) {
+			return m
+		}
+	}
+	return DefaultModel(want)
+}
+
+// DefaultModel returns a hardcoded fallback for a canonical model ID, used only
+// when live model discovery has not run. ModelNumbers mirror the md17 values
+// from the live registry (argon=8, pro=3, flash=1, flash-lite=6).
+func DefaultModel(canonical string) GeminiModel {
+	switch strings.ToLower(canonical) {
+	case "gemini-4-argon":
+		return GeminiModel{ID: "gemini-4-argon", DisplayName: "Gemini 4 Argon", ModelID: "95a4c0abcba24364", ModelNumber: 8, Capacity: 2, CapacityField: 12}
+	case "gemini-3.1-pro":
+		return GeminiModel{ID: "gemini-3.1-pro", DisplayName: "Gemini 3.1 Pro", ModelID: "e6fa609c3fa255c0", ModelNumber: 3, Capacity: 2, CapacityField: 12}
+	case "gemini-3.8-flash":
+		return GeminiModel{ID: "gemini-3.8-flash", DisplayName: "Gemini 3.8 Flash", ModelID: "56fdd199312815e2", ModelNumber: 1, Capacity: 2, CapacityField: 12}
+	case "gemini-flash-lite":
+		return GeminiModel{ID: "gemini-flash-lite", DisplayName: "Gemini Flash-Lite", ModelID: "8c46e95b1a07cecc", ModelNumber: 6, Capacity: 2, CapacityField: 12}
+	default:
+		return GeminiModel{ID: "gemini-auto", DisplayName: "Gemini Auto", ModelID: "auto", Capacity: 1, CapacityField: 12, ModelNumber: 1}
+	}
+}
+
 func defaultModels() []GeminiModel {
 	return []GeminiModel{
 		{

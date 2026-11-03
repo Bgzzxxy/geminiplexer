@@ -132,7 +132,6 @@ func (s *AccountSession) StreamGenerateWithMeta(ctx context.Context, prompt stri
 	}
 
 	requestID := strings.ToUpper(uuid.NewString())
-	generationID := strings.ToUpper(uuid.NewString())
 
 	// Build inner payload (81 elements); non-temporary so Gemini returns
 	// continuation metadata (cid/rid/rcid/contextToken) for multi-turn use.
@@ -182,7 +181,10 @@ func (s *AccountSession) StreamGenerateWithMeta(ctx context.Context, prompt stri
 		modelHdr[11] = model.Capacity
 		modelHdr[14] = model.ModelNumber
 		modelHdr[15] = thinkingLevel
-		modelHdr[16] = generationID
+		// [16] is the f.sid session fingerprint (FdrFJe), NOT a per-request UUID.
+		// gsb BuildModelHeader sets [16]=fSid; a random UUID here broke model
+		// routing and caused Google to silently fall back to Flash-Lite.
+		modelHdr[16] = sessionID
 
 		encHdr, _ := json.Marshal(modelHdr)
 		req.Header.Set(geminiModelHeaderKey, string(encHdr))
@@ -256,12 +258,15 @@ func (s *AccountSession) StreamGenerateWithMeta(ctx context.Context, prompt stri
 				chunks := extractChunksFromEnvelope(envelope)
 				log.Printf("[StreamGenerate] parsed envelope successfully, found %d chunks", len(chunks))
 				for _, chunk := range chunks {
-					if chunk.Text != "" || chunk.Reasoning != "" || chunk.ModelID != "" || chunk.ResponseModel != "" || chunk.ContextToken != "" {
+					if chunk.Text != "" || chunk.Reasoning != "" || chunk.ModelID != "" || chunk.ResponseModel != "" || chunk.ContextToken != "" || chunk.IsDone {
 						select {
 						case ch <- chunk:
 						case <-ctx.Done():
 							return
 						}
+					}
+					if chunk.IsDone {
+						return
 					}
 				}
 			}
@@ -381,6 +386,16 @@ func extractChunksFromEnvelope(envelope any) []GenerateChunk {
 							chunk.Text = SanitizeText(resText)
 						}
 					}
+					// Terminal frame: candidate[8][0]==2 marks generation complete.
+					// Gemini keeps the response body open after this frame, so
+					// waiting for EOF hangs the request forever.
+					if len(firstCand) > 8 {
+						if stArr, ok := firstCand[8].([]any); ok && len(stArr) > 0 {
+							if f, ok := stArr[0].(float64); ok && int(f) == 2 {
+								chunk.IsDone = true
+							}
+						}
+					}
 				}
 			}
 		}
@@ -392,7 +407,7 @@ func extractChunksFromEnvelope(envelope any) []GenerateChunk {
 			}
 		}
 
-		if chunk.Text != "" || chunk.Reasoning != "" || chunk.ModelID != "" || chunk.ResponseModel != "" || chunk.ResponseModelID != "" || chunk.CID != "" || chunk.RID != "" || chunk.RCID != "" || chunk.ContextToken != "" {
+		if chunk.Text != "" || chunk.Reasoning != "" || chunk.ModelID != "" || chunk.ResponseModel != "" || chunk.ResponseModelID != "" || chunk.CID != "" || chunk.RID != "" || chunk.RCID != "" || chunk.ContextToken != "" || chunk.IsDone {
 			results = append(results, chunk)
 		}
 	}

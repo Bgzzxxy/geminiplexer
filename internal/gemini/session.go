@@ -20,8 +20,10 @@ import (
 var (
 	accessTokenRegex         = regexp.MustCompile(`"SNlM0e":"([^"]+)"`)
 	accessTokenFallbackRegex = regexp.MustCompile(`\["SNlM0e","([^"]+)"\]`)
-	buildLabelRegex          = regexp.MustCompile(`"bl":"([^"]+)"`)
-	sessionIDRegex           = regexp.MustCompile(`"f\.sid":"([^"]+)"`)
+	buildLabelRegex          = regexp.MustCompile(`"cfb2h":"([^"]+)"`)
+	buildLabelFallbackRegex  = regexp.MustCompile(`"bl":"([^"]+)"`)
+	sessionIDRegex           = regexp.MustCompile(`"FdrFJe":"([^"]+)"`)
+	sessionIDFallbackRegex   = regexp.MustCompile(`"f\.sid":"([^"]+)"`)
 )
 
 type AccountSession struct {
@@ -343,10 +345,14 @@ func (s *AccountSession) Init(ctx context.Context) error {
 	bl := ""
 	if m := buildLabelRegex.FindStringSubmatch(body); len(m) >= 2 {
 		bl = m[1]
+	} else if m := buildLabelFallbackRegex.FindStringSubmatch(body); len(m) >= 2 {
+		bl = m[1]
 	}
 
 	sessionID := ""
 	if m := sessionIDRegex.FindStringSubmatch(body); len(m) >= 2 {
+		sessionID = m[1]
+	} else if m := sessionIDFallbackRegex.FindStringSubmatch(body); len(m) >= 2 {
 		sessionID = m[1]
 	}
 
