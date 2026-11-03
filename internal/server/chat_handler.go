@@ -366,7 +366,8 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			parsedCalls, remaining, ok := toolbridge.ParseToolCalls(finalContent)
 			var toolCalls []toolbridge.ToolCall
 			if ok {
-				toolCalls = parsedCalls
+				// Validate + coerce each call's arguments against its JSON Schema.
+				toolCalls = toolbridge.CoerceCallsAgainstTools(parsedCalls, req.Tools)
 				finalContent = remaining
 			} else if strings.Contains(finalContent, "```json") || strings.Contains(finalContent, "\"name\":") {
 				// Repair attempt
@@ -584,7 +585,8 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	if len(req.Tools) > 0 {
 		parsedCalls, remaining, ok := toolbridge.ParseToolCalls(finalContent)
 		if ok {
-			toolCalls = parsedCalls
+			// Validate + coerce each call's arguments against its JSON Schema.
+			toolCalls = toolbridge.CoerceCallsAgainstTools(parsedCalls, req.Tools)
 			finalContent = remaining
 		} else if strings.Contains(finalContent, "```json") || strings.Contains(finalContent, "\"name\":") {
 			// Model attempted tool call but produced invalid JSON: 1-shot repair attempt
