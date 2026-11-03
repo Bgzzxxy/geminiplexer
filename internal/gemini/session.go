@@ -58,6 +58,10 @@ type AccountSession struct {
 	Group                  string
 	// Concurrency control: limits parallel requests per account
 	concSem                chan struct{}
+	// configPath is the accounts.yaml this session was loaded from, used to
+	// persist rotated/absorbed cookies back to disk so restarts don't reload
+	// stale credentials.
+	configPath             string
 }
 
 func parseCookieField(rawCookies, key string) string {
@@ -116,11 +120,42 @@ func (s *AccountSession) SetEndpointOverride(u string) {
 	s.EndpointOverride = u
 }
 
-func (s *AccountSession) UpdateCookies(rawCookies string) {
+// SetConfigPath records the accounts.yaml path so cookie rotation/absorption can
+// persist updated credentials to disk.
+func (s *AccountSession) SetConfigPath(path string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.configPath = path
+}
+
+// PersistCookies writes the current raw cookie header (after any rotation or
+// absorption) back to accounts.yaml so a restart reloads fresh credentials
+// instead of the stale on-disk value. No-op when no config path is recorded.
+func (s *AccountSession) PersistCookies() {
+	s.mu.RLock()
+	path := s.configPath
+	cookies := s.getFullCookieHeaderLocked()
+	s.mu.RUnlock()
+	if path == "" || cookies == "" {
+		return
+	}
+	if err := config.UpdateAccountCookies(path, s.ID, cookies, s.AuthUser); err != nil {
+		log.Printf("[Session] %s: failed to persist cookies to %s: %v", s.ID, path, err)
+		return
+	}
+	log.Printf("[Session] %s: cookies persisted to disk", s.ID)
+}
+
+// UpdateCookies replaces the account's raw cookie set (from a fresh injection)
+// and re-initializes the session. It always persists to disk when a config path
+// is recorded so the injected cookies survive a restart.
+func (s *AccountSession) UpdateCookies(rawCookies string) {
+	s.mu.Lock()
 	s.applyRawCookies(rawCookies)
 	s.IsHealthy = true
+	s.mu.Unlock()
+
+	s.PersistCookies()
 }
 
 func (s *AccountSession) SetRotateEndpointOverride(u string) {

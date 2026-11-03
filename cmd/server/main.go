@@ -36,6 +36,7 @@ func main() {
 	log.Printf("[Main] Initializing %d accounts...", len(cfg.Accounts))
 	for _, accCfg := range cfg.Accounts {
 		sess := gemini.NewAccountSession(accCfg)
+		sess.SetConfigPath(*configPath)
 		sessions = append(sessions, sess)
 
 		wg.Add(1)

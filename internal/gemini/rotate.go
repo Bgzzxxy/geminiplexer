@@ -56,6 +56,10 @@ func (s *AccountSession) RotateCookies(ctx context.Context) error {
 	s.LastRotated = time.Now()
 	s.mu.Unlock()
 
+	// Persist rotated/absorbed cookies back to disk so a restart reloads fresh
+	// credentials instead of the stale on-disk value.
+	s.PersistCookies()
+
 	// === Self-heal SNlM0e if it might be stale ===
 	s.mu.RLock()
 	token := s.Token
