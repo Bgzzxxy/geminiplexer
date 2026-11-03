@@ -80,12 +80,12 @@ func TestExtractModelsFromPayloadShort(t *testing.T) {
 
 func TestMapCategoryToFriendlyID(t *testing.T) {
 	cases := map[string]string{
-		"argon":            "gemini-4-argon",
-		"pro":              "gemini-3.1-pro",
-		"flash":            "gemini-3.8-flash",
-		"Flash-Lite":       "gemini-flash-lite",
-		"bogus":            "",
-		"":                 "",
+		"argon":      "gemini-4-argon",
+		"pro":        "gemini-3.1-pro",
+		"flash":      "gemini-3.8-flash",
+		"Flash-Lite": "gemini-flash-lite",
+		"bogus":      "",
+		"":           "",
 	}
 	for in, want := range cases {
 		if got := mapCategoryToFriendlyID(in); got != want {

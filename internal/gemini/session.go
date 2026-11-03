@@ -61,11 +61,11 @@ type AccountSession struct {
 	ProxyURL               string
 	Group                  string
 	// Concurrency control: limits parallel requests per account
-	concSem                chan struct{}
+	concSem chan struct{}
 	// configPath is the accounts.yaml this session was loaded from, used to
 	// persist rotated/absorbed cookies back to disk so restarts don't reload
 	// stale credentials.
-	configPath             string
+	configPath string
 }
 
 func parseCookieField(rawCookies, key string) string {

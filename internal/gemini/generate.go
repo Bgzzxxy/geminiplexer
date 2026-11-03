@@ -24,16 +24,16 @@ const (
 )
 
 type GenerateChunk struct {
-	Text           string
-	Reasoning      string
-	ModelID        string
-	ResponseModel  string // answered model label (from pj[42])
+	Text            string
+	Reasoning       string
+	ModelID         string
+	ResponseModel   string // answered model label (from pj[42])
 	ResponseModelID string // answered model hex id (from pj[39])
-	CID            string // conversation id (pj[1][0])
-	RID            string // response id (pj[1][1])
-	RCID           string // candidate id (candidate[0])
-	ContextToken   string // conversation continuation token (pj[25])
-	IsDone         bool
+	CID             string // conversation id (pj[1][0])
+	RID             string // response id (pj[1][1])
+	RCID            string // candidate id (candidate[0])
+	ContextToken    string // conversation continuation token (pj[25])
+	IsDone          bool
 }
 
 // ContinuationMeta carries the 4 tokens Gemini Web returns so a follow-up turn
