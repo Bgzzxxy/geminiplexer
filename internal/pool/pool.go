@@ -70,6 +70,12 @@ func (p *AccountPool) AcquireForGroupWithAffinity(ctx context.Context, requested
 		if group != "" && s.Group != group {
 			return false
 		}
+		// Quota preflight: skip accounts whose requested model family is known
+		// exhausted within the freshness window, so we don't burn a request that
+		// will be silently downgraded (or rejected) upstream.
+		if exhausted, _, known := s.QuotaExhaustedFor(requestedModel, now, gemini.QuotaFreshness); exhausted && known {
+			return false
+		}
 		return true
 	}
 

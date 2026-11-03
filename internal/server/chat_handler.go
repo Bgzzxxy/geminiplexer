@@ -212,6 +212,11 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		streamChan     <-chan gemini.GenerateChunk
 		bufferedChunks []gemini.GenerateChunk
 		lastErr        error
+		// downgrade tracking across attempts, so a downgrade on the final
+		// attempt is rejected (with X-Resets-At) instead of silently served.
+		finalDowngrade      bool
+		downgradedToModel   string
+		downgradeResetAt    time.Time
 	)
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
@@ -262,6 +267,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 				if (strings.Contains(requestedLower, "pro") || strings.Contains(requestedLower, "argon")) &&
 					(strings.Contains(responseLower, "flash") || strings.Contains(responseLower, "lite")) {
 					downgraded = true
+					downgradedToModel = responseModelStr
 					log.Printf("[Chat] model downgrade detected: requested=%s, got=%s (account=%s)", modelName, responseModelStr, sess.ID)
 				}
 				break
@@ -271,13 +277,30 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		if downgraded && attempt < maxAttempts-1 {
+		if downgraded {
+			// Record the account's quota reset so a final-attempt rejection can
+			// include it, and prefer failover while attempts remain.
+			downgradeResetAt = sess.GetQuotaResetAt()
+			if attempt < maxAttempts-1 {
+				release(pool.StatusModelDowngraded)
+				continue
+			}
+			// Final attempt and still downgraded: reject rather than silently
+			// serving the substituted (lower-tier) model.
+			finalDowngrade = true
 			release(pool.StatusModelDowngraded)
-			continue
+			break
 		}
 
 		// Succeeded with healthy model
 		break
+	}
+
+	// Downgrade on the final attempt is an explicit model-substitution error,
+	// not a success — with X-Resets-At so clients can retry after quota reset.
+	if finalDowngrade {
+		writeModelSubstitutionError(w, modelName, downgradedToModel, downgradeResetAt)
+		return
 	}
 
 	if streamChan == nil {

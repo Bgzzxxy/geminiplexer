@@ -59,6 +59,7 @@ func main() {
 
 	accountPool := pool.NewAccountPool(sessions)
 	accountPool.StartBackgroundRotator(ctx, 1440)
+	accountPool.StartQuotaRefresher(ctx, 5*time.Minute)
 
 	srv := server.NewServer(cfg, accountPool, func() error {
 		reloadConfiguration(*configPath, accountPool)

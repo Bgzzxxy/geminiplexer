@@ -53,6 +53,8 @@ type AccountSession struct {
 	LastRotated            time.Time
 	CooldownUntil          time.Time
 	QuotaResetAt           time.Time
+	CachedQuota            []QuotaBucket
+	QuotaCheckedAt         time.Time
 	IsHealthy              bool
 	ProxyURL               string
 	Group                  string
