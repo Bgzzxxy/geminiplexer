@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -21,6 +22,9 @@ import (
 const (
 	DefaultGenerateURL   = "https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate"
 	geminiModelHeaderKey = "x-goog-ext-525001261-jspb"
+	// streamIdleTimeout aborts an upstream stream that stops producing bytes,
+	// so a stalled request cannot pin an account slot indefinitely.
+	streamIdleTimeout = 45 * time.Second
 )
 
 type GenerateChunk struct {
@@ -155,8 +159,16 @@ func (s *AccountSession) StreamGenerateWithMeta(ctx context.Context, prompt stri
 		query.Set("f.sid", sessionID)
 	}
 
+	// Idle watchdog: Gemini sometimes accepts the request, sends an ack frame,
+	// then stalls without ever emitting the terminal frame. Without this the
+	// reader loop blocks until the client gives up, holding an account slot.
+	ctx, cancelIdle := context.WithCancel(ctx)
+	idle := time.NewTimer(streamIdleTimeout)
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint+"?"+query.Encode(), strings.NewReader(form.Encode()))
 	if err != nil {
+		cancelIdle()
+		idle.Stop()
 		return nil, fmt.Errorf("create stream generate request: %w", err)
 	}
 
@@ -196,6 +208,8 @@ func (s *AccountSession) StreamGenerateWithMeta(ctx context.Context, prompt stri
 
 	resp, err := client.Do(req)
 	if err != nil {
+		cancelIdle()
+		idle.Stop()
 		log.Printf("[StreamGenerate] client.Do error: %v", err)
 		return nil, fmt.Errorf("execute stream generate request: %w", err)
 	}
@@ -204,6 +218,8 @@ func (s *AccountSession) StreamGenerateWithMeta(ctx context.Context, prompt stri
 
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
+		cancelIdle()
+		idle.Stop()
 		return nil, fmt.Errorf("stream generate returned HTTP %d", resp.StatusCode)
 	}
 
@@ -211,12 +227,29 @@ func (s *AccountSession) StreamGenerateWithMeta(ctx context.Context, prompt stri
 	go func() {
 		defer resp.Body.Close()
 		defer close(ch)
+		// Cancelling here (not in StreamGenerate) keeps the stream alive after
+		// the function returns; the caller consumes the channel afterwards.
+		defer cancelIdle()
+		defer idle.Stop()
+
+		// Cancel the upstream request if no bytes arrive for streamIdleTimeout.
+		go func() {
+			select {
+			case <-idle.C:
+				log.Printf("[StreamGenerate] idle timeout after %s, aborting upstream", streamIdleTimeout)
+				cancelIdle()
+			case <-ctx.Done():
+			}
+		}()
 
 		reader := bufio.NewReader(resp.Body)
 		var frameBuf strings.Builder
 
 		for {
 			line, err := reader.ReadString('\n')
+			if err == nil {
+				idle.Reset(streamIdleTimeout)
+			}
 			if err != nil {
 				log.Printf("[StreamGenerate] reader loop exited with err=%v, line_len=%d", err, len(line))
 				if err != io.EOF && ctx.Err() == nil {

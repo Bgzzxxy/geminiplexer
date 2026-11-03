@@ -39,9 +39,9 @@ type Usage struct {
 }
 
 type ChatChoice struct {
-	Index        int                    `json:"index"`
-	Message      ChatMessage            `json:"message"`
-	FinishReason string                 `json:"finish_reason"`
+	Index        int         `json:"index"`
+	Message      ChatMessage `json:"message"`
+	FinishReason string      `json:"finish_reason"`
 }
 
 type ChatCompletionResponse struct {
@@ -74,12 +74,17 @@ type ChatCompletionChunk struct {
 	Choices []StreamChoice `json:"choices"`
 }
 
+// parseReasoningEffort maps OpenAI-style effort to Google's
+// Assistant_Lamda_ThinkingLevel enum as advertised by the live registry:
+// 1=Low, 4=Medium, 2=High. The previous mapping (medium=2, high=3) sent
+// Medium requests as High and High requests as an enum value that does not
+// exist.
 func parseReasoningEffort(level string) int {
 	switch strings.ToLower(level) {
 	case "medium":
-		return 2
+		return 4
 	case "high":
-		return 3
+		return 2
 	default:
 		return 1 // low
 	}
@@ -203,6 +208,12 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	if maxAttempts <= 0 {
 		maxAttempts = 1
 	}
+	// Cap failover: each stalled attempt can burn streamIdleTimeout, so trying
+	// every account would make a single request take minutes.
+	const maxFailoverAttempts = 3
+	if maxAttempts > maxFailoverAttempts {
+		maxAttempts = maxFailoverAttempts
+	}
 
 	start := time.Now()
 	var (
@@ -214,9 +225,9 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		lastErr        error
 		// downgrade tracking across attempts, so a downgrade on the final
 		// attempt is rejected (with X-Resets-At) instead of silently served.
-		finalDowngrade      bool
-		downgradedToModel   string
-		downgradeResetAt    time.Time
+		finalDowngrade    bool
+		downgradedToModel string
+		downgradeResetAt  time.Time
 	)
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
@@ -290,6 +301,35 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			finalDowngrade = true
 			release(pool.StatusModelDowngraded)
 			break
+		}
+
+		// No content at all means upstream stalled and the idle watchdog
+		// aborted it; a canned apology means Gemini answered HTTP 200 with an
+		// error message. Both should fail over instead of reaching the client
+		// as an empty or bogus completion.
+		var answerText strings.Builder
+		for _, c := range bufferedChunks {
+			answerText.WriteString(c.Text)
+		}
+		gotContent := strings.TrimSpace(answerText.String()) != ""
+		errReply := gemini.GeminiErrorReply(answerText.String())
+		if !gotContent || errReply != "" {
+			if errReply != "" {
+				lastErr = fmt.Errorf("upstream returned an error message instead of a reply: %q", errReply)
+			} else {
+				lastErr = fmt.Errorf("upstream returned an empty completion")
+			}
+			// Only cool the account down on the final attempt: a single
+			// upstream hiccup shouldn't sideline one of five accounts.
+			// An upstream stall or canned apology says nothing about this
+			// account's quota, so never apply the 30m rate-limit cooldown here.
+			if attempt < maxAttempts-1 {
+				release(pool.StatusSuccess)
+				continue
+			}
+			release(pool.StatusSuccess)
+			writeAPIError(w, http.StatusBadGateway, ErrCodeServerError, lastErr.Error())
+			return
 		}
 
 		// Succeeded with healthy model
