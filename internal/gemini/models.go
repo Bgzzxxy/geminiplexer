@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -58,7 +57,7 @@ func (s *AccountSession) FetchModels(ctx context.Context) ([]GeminiModel, error)
 	query := url.Values{
 		"rpcids":      {geminiUserStatusRPC},
 		"hl":          {"en"},
-		"_reqid":      {strconv.Itoa(rand.Intn(90000) + 10000)},
+		"_reqid":      {strconv.FormatInt(s.NextReqID(), 10)},
 		"rt":          {"c"},
 		"source-path": {"/app"},
 	}

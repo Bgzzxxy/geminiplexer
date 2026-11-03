@@ -1,8 +1,8 @@
 package gemini_test
 
 import (
-	"testing"
 	"geminiplexer/internal/gemini"
+	"testing"
 )
 
 func TestParseStreamFrameDirect(t *testing.T) {

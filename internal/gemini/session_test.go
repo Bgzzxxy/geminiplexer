@@ -2,11 +2,11 @@ package gemini_test
 
 import (
 	"context"
+	"geminiplexer/internal/config"
+	"geminiplexer/internal/gemini"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"geminiplexer/internal/config"
-	"geminiplexer/internal/gemini"
 )
 
 func TestSessionInitExtractsSNlM0e(t *testing.T) {

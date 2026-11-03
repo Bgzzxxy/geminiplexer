@@ -2,12 +2,12 @@ package gemini_test
 
 import (
 	"context"
+	"geminiplexer/internal/config"
+	"geminiplexer/internal/gemini"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"geminiplexer/internal/config"
-	"geminiplexer/internal/gemini"
 )
 
 func TestStreamGenerateParsing(t *testing.T) {

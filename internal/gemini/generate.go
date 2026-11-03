@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -149,7 +148,7 @@ func (s *AccountSession) StreamGenerateWithMeta(ctx context.Context, prompt stri
 	query := url.Values{
 		"at":     {token},
 		"hl":     {"en"},
-		"_reqid": {strconv.Itoa(rand.Intn(90000) + 10000)},
+		"_reqid": {strconv.FormatInt(s.NextReqID(), 10)},
 		"rt":     {"c"},
 	}
 	if buildLabel != "" {
@@ -236,7 +235,7 @@ func (s *AccountSession) StreamGenerateWithMeta(ctx context.Context, prompt stri
 		go func() {
 			select {
 			case <-idle.C:
-				log.Printf("[StreamGenerate] idle timeout after %s, aborting upstream", streamIdleTimeout)
+				log.Printf("[StreamGenerate] idle timeout after %s, aborting upstream (account=%s model=%s)", streamIdleTimeout, s.ID, model.ModelID)
 				cancelIdle()
 			case <-ctx.Done():
 			}

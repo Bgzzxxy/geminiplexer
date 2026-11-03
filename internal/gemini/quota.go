@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -96,7 +95,7 @@ func (s *AccountSession) doQuotaBatch(ctx context.Context, client *http.Client, 
 	query := url.Values{
 		"rpcids":      {geminiQuotaRPC},
 		"hl":          {"en"},
-		"_reqid":      {strconv.Itoa(rand.Intn(90000) + 10000)},
+		"_reqid":      {strconv.FormatInt(s.NextReqID(), 10)},
 		"rt":          {"c"},
 		"source-path": {"/app"},
 	}

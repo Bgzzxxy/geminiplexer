@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"geminiplexer/internal/config"
@@ -66,6 +67,20 @@ type AccountSession struct {
 	// persist rotated/absorbed cookies back to disk so restarts don't reload
 	// stale credentials.
 	configPath string
+	// reqCounter backs the batchexecute _reqid query param. Google expects it
+	// to increase monotonically per account; a random value can make the
+	// upstream accept the request and then stall.
+	reqCounter atomic.Int64
+}
+
+// NextReqID returns the next monotonically increasing _reqid for this account.
+// Seeded the way gsb does it (100000 + a time-derived offset) and stepped by
+// 100000 per request.
+func (s *AccountSession) NextReqID() int64 {
+	if s.reqCounter.Load() == 0 {
+		s.reqCounter.Store(100000 + time.Now().UnixNano()%800000)
+	}
+	return s.reqCounter.Add(100000)
 }
 
 func parseCookieField(rawCookies, key string) string {
